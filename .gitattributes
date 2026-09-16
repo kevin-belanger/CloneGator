@@ -1,0 +1,7 @@
+# Le projet tourne sous Debian. Tout est normalisé en LF dans le dépôt ET à la
+# sortie, quelle que soit la machine qui édite — un shebang en CRLF donne un
+# « bad interpreter » à l'exécution.
+* text=auto eol=lf
+
+*.png binary
+*.img binary
