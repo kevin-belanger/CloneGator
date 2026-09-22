@@ -41,12 +41,15 @@ secondes. Il contient délibérément les cas qui échouent : cible trop petite,
 table périmée, cible plus grande que la source, et une source dont les
 partitions sont numérotées 1, 2, 3, **5**.
 
+Le banc a besoin des droits root (`losetup`, `mkfs`, `mount`) — préfixe par
+`sudo` si tu n'es pas déjà root.
+
 ```bash
-sudo ./outils/banc.sh creer
+./outils/banc.sh creer
 ```
 
 ```bash
-sudo ./outils/banc.sh detruire
+./outils/banc.sh detruire
 ```
 
 ## Dépendances
@@ -55,5 +58,5 @@ Python 3 et sa bibliothèque standard uniquement — pas de `pip`, pas
 d'environnement virtuel. Le travail réel est délégué aux outils système :
 
 ```bash
-sudo apt-get install -y util-linux gdisk parted e2fsprogs dosfstools ntfs-3g partclone zstd smartmontools
+apt-get install -y util-linux gdisk parted e2fsprogs dosfstools ntfs-3g partclone zstd smartmontools
 ```

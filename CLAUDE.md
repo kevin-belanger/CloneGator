@@ -74,9 +74,9 @@ bogue dessus, on valide ensuite sur les baies. Ne pas s'en passer sous
 prétexte que le matériel est là.
 
 ```bash
-sudo ./outils/banc.sh creer
-sudo ./outils/banc.sh etat
-sudo ./outils/banc.sh detruire
+./outils/banc.sh creer
+./outils/banc.sh etat
+./outils/banc.sh detruire
 ```
 
 Le parc contient délibérément les cas qui échouent : cible trop petite, table
@@ -88,9 +88,10 @@ la cible et relancer `sha256sum -c` dessus.
 
 ## Environnement
 
-La station tourne sur Debian, système sur disque USB. Les disques dans les
-baies sont des disques d'essai, sacrifiés par définition.
+Station de test sous Debian, système sur disque USB, **root comme seul
+utilisateur**. Le dépôt vit dans `/opt/clonegator`.
 
-Les commandes disque exigent root. Claude Code tourne en utilisateur normal et
-passe par `sudo` — si `sudo` demande un mot de passe, la commande reste
-bloquée sans que personne puisse répondre.
+Les commandes disque exigent root : elles s'exécutent donc directement, sans
+`sudo`, qui n'est pas forcément installé. Ne pas préfixer les commandes.
+
+Les disques dans les baies sont des disques d'essai, sacrifiés par définition.
