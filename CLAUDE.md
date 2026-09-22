@@ -89,7 +89,7 @@ la cible et relancer `sha256sum -c` dessus.
 ## Environnement
 
 Station de test sous Debian, système sur disque USB, **root comme seul
-utilisateur**. Le dépôt vit dans `/opt/clonegator`.
+utilisateur**. Le dépôt vit dans `~/clonegator`, soit `/root/clonegator`.
 
 Les commandes disque exigent root : elles s'exécutent donc directement, sans
 `sudo`, qui n'est pas forcément installé. Ne pas préfixer les commandes.
