@@ -1,7 +1,7 @@
 """Unique point de passage vers le système.
 
-Aucun autre module du projet n'appelle `subprocess` directement. Tout passe par
-ici, ce qui donne trois choses :
+Aucun autre module du projet n'appelle `subprocess` ni ne lit `/dev`, `/sys` ou
+`/proc` directement. Tout passe par ici, ce qui donne trois choses :
 
   - un délai d'attente sur *chaque* commande. `clonesrv` pouvait se figer
     indéfiniment sur un disque bloqué, sans rien afficher ;
@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import shutil
 import subprocess
 import time
@@ -134,6 +135,24 @@ def executer_json(argv: list[str], delai: float = DELAI_DEFAUT) -> dict | None:
         return json.loads(resultat.sortie)
     except json.JSONDecodeError as erreur:
         _log.warning("%s : sortie JSON illisible (%s)", resultat.commande, erreur)
+        return None
+
+
+def lister(repertoire: str) -> list[str]:
+    """Noms des entrées d'un répertoire système, triés ; vide s'il n'existe pas."""
+    try:
+        return sorted(os.listdir(repertoire))
+    except OSError as erreur:
+        _log.debug("%s illisible (%s)", repertoire, erreur)
+        return []
+
+
+def chemin_reel(chemin: str) -> str | None:
+    """Cible finale d'un lien comme ceux de `/dev/disk/by-path`, None si illisible."""
+    try:
+        return os.path.realpath(chemin, strict=True)
+    except OSError as erreur:
+        _log.warning("lien illisible : %s (%s)", chemin, erreur)
         return None
 
 

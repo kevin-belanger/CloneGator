@@ -13,10 +13,8 @@ aucune vérification supplémentaire n'est nécessaire ailleurs.
 from __future__ import annotations
 
 import logging
-import os
 import re
 from dataclasses import dataclass, field
-from pathlib import Path
 
 from . import sysexec
 
@@ -34,8 +32,8 @@ ROLE_IGNORE = "ignore"
 # l'enjeu : ne rien ajouter ici sans relire P2.
 BUS_CLONABLES = frozenset({"sata", "ata"})
 
-_BY_PATH = Path("/dev/disk/by-path")
-_ATA_PORTS = Path("/sys/class/ata_port")
+_BY_PATH = "/dev/disk/by-path"
+_ATA_PORTS = "/sys/class/ata_port"
 
 # Le noyau nomme les liens de deux façons selon sa version :
 #   pci-0000:00:17.0-ata-1        (ancienne)
@@ -121,12 +119,9 @@ def ports_ata() -> list[int]:
     baie vide — un lien `by-path` n'existe que si un disque est branché, il ne
     peut donc pas servir à ça.
     """
-    if not _ATA_PORTS.is_dir():
-        return []
-
     numeros = []
-    for entree in _ATA_PORTS.iterdir():
-        trouve = _NOM_PORT_ATA.fullmatch(entree.name)
+    for nom in sysexec.lister(_ATA_PORTS):
+        trouve = _NOM_PORT_ATA.fullmatch(nom)
         if trouve:
             numeros.append(int(trouve.group(1)))
     return sorted(numeros)
@@ -134,27 +129,24 @@ def ports_ata() -> list[int]:
 
 def ports_occupes() -> dict[str, int]:
     """Associe le chemin réel d'un disque au numéro de port ATA qui le porte."""
-    if not _BY_PATH.is_dir():
-        return {}
-
     ports: dict[str, int] = {}
-    for lien in sorted(_BY_PATH.iterdir()):
-        trouve = _LIEN_ATA.search(lien.name)
+    for nom in sysexec.lister(_BY_PATH):
+        trouve = _LIEN_ATA.search(nom)
         if not trouve:
             continue  # écarte aussi les entrées « -partN », qui ne finissent pas là
-        try:
-            reel = os.path.realpath(lien)
-        except OSError as erreur:
-            _log.warning("lien by-path illisible : %s (%s)", lien, erreur)
-            continue
-        ports[reel] = int(trouve.group(1))
+        reel = sysexec.chemin_reel(f"{_BY_PATH}/{nom}")
+        if reel:
+            ports[reel] = int(trouve.group(1))
     return ports
 
 
 def inventaire() -> list[Disque]:
     """Tous les disques que la machine expose, décrits une bonne fois."""
     brut = sysexec.executer_json(
-        ["lsblk", "--json", "--bytes", "-o", _COLONNES]
+        # --tree est indispensable : dès qu'on choisit ses colonnes sans NAME,
+        # lsblk rend une liste plate, sans « children », et aucune partition
+        # n'est rattachée à son disque.
+        ["lsblk", "--json", "--tree", "--bytes", "-o", _COLONNES]
     )
     if not brut:
         _log.error("lsblk n'a rien renvoyé d'exploitable")
@@ -197,7 +189,7 @@ def stockages(disques: list[Disque]) -> list[Disque]:
 
 def _disque_depuis(noeud: dict, ports: dict[str, int]) -> Disque:
     chemin = noeud.get("path") or ""
-    reel = os.path.realpath(chemin) if chemin else ""
+    reel = sysexec.chemin_reel(chemin) if chemin else None
 
     return Disque(
         chemin=chemin,
