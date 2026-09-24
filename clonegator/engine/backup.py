@@ -68,8 +68,11 @@ class Sauvegarde:
         self.etiquette = etiquette
         self.journal = journal
         self.delai_blocage = delai_blocage
+        # Une seule heure pour le nom du dossier et la date de l'image : celle
+        # du début de la sauvegarde.
+        self._heure = time.time()
         self.dossier = os.path.join(racine_stockage, image.RACINE,
-                                    image.nom_dossier(etiquette))
+                                    image.nom_dossier(etiquette, self._heure))
 
         self.etat = fanout.EN_COURS
         self.motif = ""
@@ -153,7 +156,7 @@ class Sauvegarde:
         self.etape = "finalisation"
         meta = {
             "mode": image.MODE_BRUT if self.source.brut else image.MODE_AUTO,
-            "date": time.strftime("%Y-%m-%d %H:%M"),
+            "date": time.strftime("%Y-%m-%d %H:%M", time.localtime(self._heure)),
             "etiquette": self.etiquette,
             "disque_origine": {
                 "modele": self.disque.description,
