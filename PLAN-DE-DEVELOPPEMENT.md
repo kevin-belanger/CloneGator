@@ -1,6 +1,6 @@
 # CloneGator — Plan de développement
 
-Compagnon de [ANALYSE-FONCTIONNELLE.md](ANALYSE-FONCTIONNELLE.md), révision 0.3.
+Compagnon de [ANALYSE-FONCTIONNELLE.md](ANALYSE-FONCTIONNELLE.md), révision 0.4.
 Les renvois `§n` pointent vers l'analyse.
 
 | Rév. | Date | Auteur | Changement |
@@ -8,6 +8,7 @@ Les renvois `§n` pointent vers l'analyse.
 | 0.1 | 2026-09-16 | Kevin + Claude | Découpage initial en modules et en phases |
 | 0.2 | 2026-09-16 | Kevin + Claude | Deux stations disponibles pour le développement : essais sur matériel réel en continu, l'ancienne phase 5 est dissoute. Ajout du critère « la cible démarre » |
 | 0.3 | 2026-09-16 | Kevin | Pas de garde-fou de développement supplémentaire. P2 suffit : le système et Claude Code vivent sur USB, et le code exclut les USB de toute écriture. On code d'abord, on traitera les problèmes quand ils se présenteront |
+| 0.4 | 2026-09-24 | Kevin + Claude | Phase 1 terminée et mesurée sur les baies. Le banc en boucle n'est plus le « niveau rapide » : les SSD des baies sont assez rapides pour itérer. Il devient une fabrique de sources et de cibles impossibles à obtenir sur les baies sans sacrifier le maître. Pannes de cibles simulées par `/sys` sur les vrais disques |
 
 ---
 
@@ -26,35 +27,42 @@ Ce n'est pas de la propreté gratuite, ça achète trois choses :
 - **le point d'échange** qui permet de faire tourner tout le reste du logiciel sur un faux
   matériel.
 
-### 1.2 Deux niveaux d'essai, pas un seul
+### 1.2 Essayer sur les baies, fabriquer ce qu'elles ne donnent pas
 
-Le développement se fait **sur une station réelle**, disques dans les baies. Ça ne supprime pas
-le banc virtuel : ça lui donne son vrai rôle, qui est d'être le niveau rapide.
+Le développement se fait **sur une station réelle**, disques dans les baies. C'est le niveau
+d'essai principal, et pas seulement celui de la validation finale.
 
-**Niveau rapide — le banc en boucle.** Des fichiers creux montés en `loop`, réellement
-partitionnés, avec de vrais systèmes de fichiers NTFS, ext4 et vfat contenant de vrais fichiers.
-Mêmes commandes, mêmes formats, mêmes vérifications que sur du matériel. Un cycle complet prend
-quelques secondes contre une dizaine de minutes au minimum sur un vrai 500 Go. C'est ce niveau
-qu'on utilise pour corriger un bogue : on ne met pas au point du code à dix minutes par essai.
+L'idée de départ était de mettre au point sur un banc en boucle, « à quelques secondes par cycle
+contre une dizaine de minutes sur un vrai 500 Go ». La phase 1 l'a démentie : les cibles sont des
+SSD, un disque source réel ne contient qu'une fraction de sa capacité, et la copie par blocs
+utilisés rend un cycle sur les baies assez court pour itérer. Le moteur de diffusion a, lui, été
+mis au point sans aucun disque, avec des tubes, puis mesuré directement sur les baies.
 
-Il apporte aussi ce que le matériel donne difficilement — des situations fabriquées à la demande
-et identiques à chaque exécution :
+**Les baies apportent** ce qu'aucune simulation ne donne : débits réels, correspondance des ports
+avec la sérigraphie, SMART sur des disques usagés, retrait à chaud, et surtout le seul critère qui
+compte vraiment pour l'école : **un disque cloné démarre-t-il ?**
 
-- une cible plus petite que la source
-- une cible portant une table de partitions périmée
+Elles permettent aussi de provoquer des pannes de cible sur de vrais disques, sans rien débrancher :
+
+- `echo offline > /sys/block/sdX/device/state` : la cible cesse de répondre, ses écritures
+  échouent ;
+- `echo 1 > /sys/block/sdX/device/delete` : la cible disparaît, comme retirée à chaud ; un
+  rescan de l'hôte SCSI la fait revenir.
+
+**Le banc en boucle devient une fabrique de cas.** Il reste utile pour ce que les baies ne peuvent
+pas donner sans sacrifier le maître du port 1 ou acheter des disques :
+
 - une source dont les numéros de partition ne sont pas contigus (1, 2, 3, **5**)
-- une GPT volontairement abîmée, une partition sans système de fichiers reconnu
-- une partition montée au moment du lancement
+- une source à GPT volontairement abîmée, à partition sans système de fichiers reconnu, à
+  système de fichiers marqué sale
+- une cible plus petite que la source — les cinq disques des baies font tous 480 Go
 
-Ce sont exactement les situations où `clonesrv` échouait mal. Un banc qui ne les contient pas ne
-prouve rien.
+Ces disques en boucle n'ont pas de port et n'obtiennent donc aucun rôle dans `devices` : ils
+servent aux essais de `engine/clone` et suivants, qui reçoivent des chemins et ne connaissent pas
+les ports. Une source du banc peut être clonée vers des cibles des baies.
 
-**Niveau de validation — les vraies baies.** Débits réels, correspondance des ports avec la
-sérigraphie, SMART sur des disques usagés, retrait à chaud, et surtout le seul critère qui
-compte vraiment pour l'école : **un disque cloné démarre-t-il ?** Aucune simulation ne répond à
-cette question. C'est le gain principal d'avoir le matériel sous la main dès le premier jour, et
-c'est pourquoi l'ancienne phase « ce qui exige la station » n'existe plus comme phase séparée :
-ses vérifications sont réparties dans chaque phase, au moment où elles ont un sens.
+Ce sont exactement les situations où `clonesrv` échouait mal. Des essais qui ne les contiennent
+pas ne prouvent rien.
 
 **Le banc simulé** — un fichier JSON décrivant un parc de disques fictifs — garde une utilité
 plus étroite : produire à volonté un état qu'on ne peut pas provoquer sur commande, comme « le
@@ -131,7 +139,7 @@ choses qui ont fait mal dans `clonesrv` sont la gestion d'échec par cible et la
 détection des ports. Avec le matériel disponible dès le départ, les deux se traitent tôt : la
 première en phase 1, la seconde dès la phase 0.
 
-Chaque phase se met au point sur le banc en boucle et se **valide sur les vraies baies**.
+Chaque phase se met au point et se valide **sur les vraies baies**, complétées par le banc pour les cas qu'elles ne donnent pas (§1.2).
 
 ### Phase 0 — Socle, banc et garde-fous · taille M
 
@@ -149,7 +157,7 @@ Chaque phase se met au point sur le banc en boucle et se **valide sur les vraies
 **Fini quand** : `clonegator inventaire` affiche le tableau des ports, et un disque déplacé de
 baie en baie apparaît chaque fois au bon numéro.
 
-### Phase 1 — Le moteur de diffusion · taille L
+### Phase 1 — Le moteur de diffusion · taille L · **terminée le 2026-09-24**
 
 C'est le cœur du projet et la partie que bash faisait mal. Elle se développe isolément.
 
@@ -171,6 +179,30 @@ empreintes identiques à la source ; en tuant une destination en cours de route,
 autres restent correctes et la cinquième est rapportée en échec ; et sur les vraies baies, le
 débit vers cinq disques tient celui du plus lent — mesuré, pas supposé.
 
+**Résultat.** `engine/fanout.py`, douze essais sans disque (`python3 -m unittest tests.test_fanout`)
+et la sous-commande `essai-diffusion` pour les baies. Mesures sur les cinq SSD Kingston SA400 :
+
+| Essai | Débit |
+|-------|-------|
+| 4 Gio vers cinq tubes, une destination tuée à mi-course | 4 empreintes identiques, la 5ᵉ en échec |
+| cinq cibles, 32 Gio, source en mémoire | 232 Mo/s |
+| la cible la plus lente seule (port 5), 32 Gio | 241 Mo/s |
+| port 1 → cinq cibles, 16 Gio, relecture depuis le disque | 5 sur 5 identiques, 200 Mo/s |
+
+Ce que la mesure a appris, et qu'on n'aurait pas deviné :
+
+- **Sur un tube, `read` rend 64 Kio**, quelle que soit la taille demandée. Le moteur remplit
+  chaque bloc et agrandit les tubes à 1 Mio : la source `partclone` de la phase 2 est un tube.
+- **Un `fsync` périodique coûte 30 %** : chacun fige la cible le temps de vider son cache. Un
+  seul `fsync` en fin de flux, qui remonte toute erreur d'écriture différée.
+- **Les disques d'un même modèle ne se valent pas** : le port 5 écrit à 241 Mo/s sur la durée,
+  ses voisins à près de 400. Le groupe suit le plus lent, comme prévu.
+- **Le maître actuel se lit mal** : 40 à 300 Mo/s dans sa zone de données, 525 Mo/s au-delà.
+  Un SSD bas de gamme dont les données ont vieilli. C'est lui qui fixe le rythme d'un clonage réel.
+- **`blockdev --setro` n'est pas vérifié à l'ouverture**, seulement à l'écriture (EPERM). Un
+  essai de P1 doit donc écrire, pas seulement ouvrir — en réécrivant à l'identique pour ne rien
+  risquer.
+
 ### Phase 2 — Tables de partitions et clonage · taille L
 
 - `layout` : lecture de la table (`sfdisk --json` donne directement du JSON exploitable),
@@ -183,8 +215,8 @@ débit vers cinq disques tient celui du plus lent — mesuré, pas supposé.
 S'ajoute ici, le matériel étant disponible : `blockdev --setro` sur le port 1 (P1), vérifié en
 essayant délibérément d'écrire dessus, et la validation du §6.5 sur de vrais disques.
 
-**Fini quand** : un clonage boucle → trois boucles reproduit l'arborescence à l'identique sur
-les trois, y compris avec une source aux numéros non contigus ; une cible trop petite est
+**Fini quand** : un clonage vers trois cibles des baies reproduit l'arborescence à l'identique
+sur les trois, y compris depuis une source du banc aux numéros non contigus ; une cible trop petite est
 écartée **avant** que la moindre écriture ait lieu sur les autres ; et surtout — **un vrai
 disque Windows cloné vers deux vraies cibles démarre sur une machine**. C'est le critère
 d'acceptation réel du projet, et c'est la première fois qu'on peut le vérifier.

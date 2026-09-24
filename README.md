@@ -23,7 +23,9 @@ Elle est appliquée à un seul endroit — l'attribution du rôle dans
 
 ## État
 
-Phase 0. L'inventaire fonctionne, rien n'écrit encore sur un disque.
+Phase 1 terminée : le moteur de diffusion lit une source une seule fois et écrit
+vers N cibles indépendantes, avec un verdict par cible. Le clonage partition par
+partition est la phase 2.
 
 ```bash
 python3 -m clonegator inventaire
@@ -35,14 +37,12 @@ python3 -m clonegator disques
 
 ## Banc d'essai
 
-Fabrique un parc de disques virtuels — vrais systèmes de fichiers, vrais
-fichiers — sur lequel le moteur tourne comme sur du matériel, mais en quelques
-secondes. Il contient délibérément les cas qui échouent : cible trop petite,
-table périmée, cible plus grande que la source, et une source dont les
-partitions sont numérotées 1, 2, 3, **5**.
+Les essais se font sur les vraies baies. Le banc fabrique ce qu'elles ne donnent
+pas sans toucher au disque maître : des disques virtuels — vrais systèmes de
+fichiers, vrais fichiers — avec les cas qui échouent : cible trop petite, table
+périmée, et une source dont les partitions sont numérotées 1, 2, 3, **5**.
 
-Le banc a besoin des droits root (`losetup`, `mkfs`, `mount`) — préfixe par
-`sudo` si tu n'es pas déjà root.
+Le banc a besoin des droits root (`losetup`, `mkfs`, `mount`).
 
 ```bash
 ./outils/banc.sh creer

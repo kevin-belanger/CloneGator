@@ -41,6 +41,10 @@ Les autres principes (P3 à P6) sont au §2 de l'analyse.
 - **Tout appel système passe par `clonegator/sysexec.py`.** Aucun autre module
   n'appelle `subprocess` ni ne lit `/dev`, `/sys`, `/proc` directement. C'est
   ce qui donne un délai d'attente sur chaque commande et le journal verbatim.
+- **Ne jamais ouvrir la source en écriture, même pour la lire.** `parted` le fait
+  pour un simple `print` : à chaque fermeture, udev croit le disque modifié et le
+  re-sonde. L'ancien menu `clonesrv` a ainsi fait lire le port 1 en boucle
+  pendant deux jours. Lire les tables avec `sfdisk --json` ou `lsblk`.
 - **Pas de numéros de partition supposés contigus.** Une source en 1, 2, 3, 5
   est un cas normal, pas une anomalie.
 - **Pas de garde-fou superflu.** Quand une règle structurelle couvre déjà un
@@ -54,24 +58,31 @@ fonctions, commentaires, messages de commit. S'y tenir.
 
 ## Où on en est
 
-Phase 0. L'inventaire fonctionne, **rien n'écrit encore sur un disque**.
+Phase 1 terminée : le moteur de diffusion (`engine/fanout.py`) lit une source une
+fois et écrit N cibles indépendantes, un verdict par cible. Mesuré sur les baies
+(résultats au plan, phase 1). Seul `essai-diffusion` écrit sur des disques.
 
 ```bash
 python3 -m clonegator inventaire
 python3 -m clonegator disques
 python3 -m clonegator -v disques     # journalise chaque commande système
+python3 -m unittest tests.test_fanout
+python3 -m clonegator essai-diffusion --volume 8   # ÉCRASE les cibles, relit et compare
 ```
 
-Prochaine étape : phase 1, le moteur de diffusion — une source lue une fois,
-N cibles indépendantes, un verdict par cible. C'est la partie que bash faisait
-mal et celle où il y a quelque chose à prouver.
+Prochaine étape : phase 2, tables de partitions et clonage partition par
+partition. Le jalon du projet : un disque Windows cloné qui démarre.
 
-## Banc d'essai
+## Essais
 
-Deux niveaux. **Le banc en boucle est le niveau rapide** : quelques secondes
-par cycle contre une dizaine de minutes sur un vrai 500 Go. On corrige un
-bogue dessus, on valide ensuite sur les baies. Ne pas s'en passer sous
-prétexte que le matériel est là.
+**Les baies sont le niveau d'essai principal.** Cinq SSD de 480 Go, sacrifiés :
+un cycle y est assez court pour itérer. Pannes de cible provoquées par `/sys`
+(`device/state` à `offline`, `device/delete`), sans rien débrancher.
+
+**Le banc en boucle fabrique ce que les baies ne donnent pas** sans toucher au
+maître du port 1 : sources aux numéros 1-2-3-5, GPT abîmée, cible plus petite
+que la source. Ses disques n'ont pas de port, donc pas de rôle : ils servent aux
+essais du moteur, qui reçoit des chemins. En ajouter quand on découvre un cas.
 
 ```bash
 ./outils/banc.sh creer
@@ -79,16 +90,12 @@ prétexte que le matériel est là.
 ./outils/banc.sh detruire
 ```
 
-Le parc contient délibérément les cas qui échouent : cible trop petite, table
-périmée, cible plus grande que la source, source numérotée 1-2-3-5. Un banc
-sans ces cas ne prouve rien. En ajouter quand on en découvre d'autres.
-
 `source-gpt.sha256` est le manifeste de référence : après un clonage, monter
 la cible et relancer `sha256sum -c` dessus.
 
 ## Environnement
 
-Station de test sous Debian, système sur disque USB, **root comme seul
+Station de test sous Ubuntu 24.04, système sur disque USB, **root comme seul
 utilisateur**. Le dépôt vit dans `~/clonegator`, soit `/root/clonegator`.
 
 Les commandes disque exigent root : elles s'exécutent donc directement, sans

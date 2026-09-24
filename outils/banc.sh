@@ -12,9 +12,9 @@
 # situations où clonesrv échouait mal. Un banc qui ne les contient pas ne
 # prouve rien.
 #
-#   sudo ./outils/banc.sh creer
-#   sudo ./outils/banc.sh etat
-#   sudo ./outils/banc.sh detruire
+#   ./outils/banc.sh creer
+#   ./outils/banc.sh etat
+#   ./outils/banc.sh detruire
 #
 set -euo pipefail
 
