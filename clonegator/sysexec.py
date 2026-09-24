@@ -71,17 +71,31 @@ class Processus:
         *,
         flux_entrant: bool = False,
         flux_sortant: bool = False,
+        entree_fd: int | None = None,
         erreurs: str | None = None,
     ):
+        """
+        flux_entrant  on écrira dans son entrée (`entree`)
+        flux_sortant  on lira sa sortie (`sortie`)
+        entree_fd     son entrée est ce descripteur : la sortie d'un autre
+                      programme, ou un disque ouvert. Les deux programmes se
+                      parlent alors directement, sans passer par Python.
+        """
         self.argv = list(argv)
         self.erreurs = erreurs
         self._fichier_erreurs = open(erreurs, "wb") if erreurs else subprocess.DEVNULL
         self._debut = time.monotonic()
         _log.info("lancé : %s", self.commande)
         try:
+            if entree_fd is not None:
+                entree = entree_fd
+            elif flux_entrant:
+                entree = subprocess.PIPE
+            else:
+                entree = subprocess.DEVNULL
             self._popen = subprocess.Popen(
                 self.argv,
-                stdin=subprocess.PIPE if flux_entrant else subprocess.DEVNULL,
+                stdin=entree,
                 stdout=subprocess.PIPE if flux_sortant else subprocess.DEVNULL,
                 stderr=self._fichier_erreurs,
             )
@@ -102,6 +116,15 @@ class Processus:
     def sortie(self) -> int:
         """Descripteur où lire ce que le programme produit."""
         return self._popen.stdout.fileno()
+
+    def ceder_sortie(self) -> None:
+        """Ferme notre copie de sa sortie, une fois confiée à un autre programme.
+
+        Sans ça, si le programme en aval meurt, celui-ci ne reçoit jamais
+        SIGPIPE — nous tenons encore le tube ouvert — et reste bloqué.
+        """
+        if self._popen.stdout and not self._popen.stdout.closed:
+            self._popen.stdout.close()
 
     def fermer_entree(self) -> None:
         """Signale la fin du flux au programme."""
@@ -179,6 +202,7 @@ def executer(
     argv: list[str],
     delai: float = DELAI_DEFAUT,
     entree: str | None = None,
+    dossier: str | None = None,
 ) -> Resultat:
     """Lance une commande et rapporte ce qu'elle a fait.
 
@@ -191,6 +215,7 @@ def executer(
         fin = subprocess.run(
             argv,
             input=entree,
+            cwd=dossier,
             capture_output=True,
             text=True,
             timeout=delai,

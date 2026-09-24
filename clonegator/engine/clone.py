@@ -1,8 +1,11 @@
-"""Clonage d'un disque vers N disques (§6 de l'analyse).
+"""Clonage d'une source vers N disques (§6 et §8 de l'analyse).
 
-Déroulement, dans cet ordre, et c'est l'ordre qui compte :
+La source est un disque, ou une image : une restauration n'est qu'un clonage
+dont la source est une image (voir `sources.py`). Déroulement, dans cet ordre,
+et c'est l'ordre qui compte :
 
-  1. le disque source passe en lecture seule noyau (P1), jusqu'à la fin ;
+  1. la source est préparée : un disque passe en lecture seule noyau (P1)
+     jusqu'à la fin, une image voit ses empreintes vérifiées ;
   2. toutes les cibles sont validées **avant qu'une seule ne soit touchée**
      (§6.5) — une cible refusée est écartée, les autres continuent ;
   3. chaque cible reçoit la tête du disque source (code d'amorçage), puis sa
@@ -11,11 +14,13 @@ Déroulement, dans cet ordre, et c'est l'ordre qui compte :
      n'étant lue qu'une fois, avec le moteur choisi pour elle (§6.2) ;
   5. chaque cible passe la vérification légère (§11).
 
+Une source brute (§6.3) est copiée d'un bloc, sans étapes 3 à 5.
+
 Une cible qui échoue à une étape est retirée des suivantes ; les autres
 continuent. Chaque cible reçoit son propre verdict, jamais un verdict global.
 
-Ce module travaille sur des objets `Disque` et ne regarde jamais leur rôle :
-choisir la source et les cibles — et donc appliquer P2 — revient à l'appelant.
+Ce module ne regarde jamais le rôle d'un disque : choisir la source et les
+cibles revient à l'appelant.
 """
 
 from __future__ import annotations
@@ -31,6 +36,7 @@ from .. import devices, filesystems, layout, sysexec, verify
 from ..devices import Disque
 from ..journal import Journal
 from . import fanout
+from .sources import ErreurSource, Flux, Plan, SourceDisque, SourceImage
 
 _log = logging.getLogger("clonegator.clone")
 
@@ -78,18 +84,8 @@ class Cible:
             _log.warning("%s : %s — %s", self.nom, etat, motif)
 
 
-@dataclass
-class Plan:
-    """Ce qui sera fait de chaque partition, décidé avant toute écriture."""
-
-    entree: layout.Entree
-    chemin_source: str
-    choix: filesystems.Choix
-    fstype: str | None
-
-
 class Clonage:
-    """Un clonage, du premier contrôle au dernier verdict.
+    """Un clonage ou une restauration, du premier contrôle au dernier verdict.
 
     `executer()` est bloquant. `etape` et `diffusion` (la copie en cours)
     peuvent être lus depuis un autre fil pour afficher la progression, et
@@ -98,12 +94,14 @@ class Clonage:
 
     def __init__(
         self,
-        source: Disque,
+        source: Disque | SourceDisque | SourceImage,
         cibles: list[Disque],
         journal: Journal,
         *,
         delai_blocage: float = 60.0,
     ):
+        if isinstance(source, Disque):
+            source = SourceDisque(source)
         self.source = source
         self.cibles = [Cible(disque) for disque in cibles]
         self.journal = journal
@@ -133,16 +131,10 @@ class Clonage:
 
     def executer(self) -> list[Cible]:
         debut = time.monotonic()
-        _log.info("source : %s, %s, s/n %s", self.source.chemin,
-                  self.source.description, self.source.serie)
+        _log.info("source : %s", self.source.description)
         for cible in self.cibles:
             _log.info("cible : %s (%s), %s, s/n %s", cible.nom, cible.disque.chemin,
                       cible.disque.description, cible.disque.serie)
-
-        if not devices.proteger(self.source):
-            for cible in self.cibles:
-                cible.conclure(ECHEC, "le disque source n'a pas pu être mis en lecture seule")
-            return self.cibles
 
         try:
             self._derouler()
@@ -151,7 +143,7 @@ class Clonage:
         except BaseException as erreur:
             if isinstance(erreur, KeyboardInterrupt):
                 self.arreter()
-                motif = "clonage interrompu"
+                motif = "opération interrompue"
             else:
                 _log.exception("erreur interne")
                 motif = f"erreur interne : {erreur!r}"
@@ -161,7 +153,7 @@ class Clonage:
         finally:
             for processus in list(self._processus):
                 processus.tuer()
-            devices.liberer(self.source)
+            self.source.liberer()
             self.duree = time.monotonic() - debut
             for cible in self.cibles:
                 _log.info("verdict %s : %s %s", cible.nom, cible.etat, cible.motif)
@@ -169,18 +161,31 @@ class Clonage:
         return self.cibles
 
     def _derouler(self) -> None:
-        self.etape = "lecture de la source"
+        self.etape = "préparation de la source"
         try:
-            self.table = layout.lire(self.source.chemin)
-            self.plans = self._planifier()
-        except layout.ErreurTable as erreur:
+            self.source.preparer()
+        except ErreurSource as erreur:
             for cible in self.cibles:
                 cible.conclure(ECHEC, f"source : {erreur}")
             return
+        self.table = self.source.table
+        self.plans = self.source.plans
+        self._interrompu()
 
         self.etape = "validation des cibles"
         self._valider()
         if not self.actives:
+            return
+
+        if self.source.brut:
+            self.etape = "copie intégrale du disque"
+            self._diffuser(self.source.ouvrir_disque_brut(self.journal),
+                           self.source.taille_requise, "disque entier",
+                           lambda c: c.disque.chemin)
+            self._interrompu()
+            for cible in self.actives:
+                cible.conclure(REUSSIE)
+            self.etape = "terminé"
             return
 
         self.etape = "tête du disque"
@@ -214,35 +219,17 @@ class Clonage:
 
     # ------------------------------------------------------------ préalable ---
 
-    def _planifier(self) -> list[Plan]:
-        partitions = {partition.numero: partition for partition in self.source.partitions}
-        plans = []
-        for entree in self.table.entrees:
-            partition = partitions.get(entree.numero)
-            if partition is None:
-                # La table la déclare, le noyau ne l'expose pas : on ne peut
-                # pas la lire, donc on ne peut pas la copier.
-                raise layout.ErreurTable(
-                    f"la partition {entree.numero} de la source n'est pas visible par le système"
-                )
-            choix = filesystems.choisir(partition, entree.etendue)
-            _log.info("partition %d (%s, %s) : %s", entree.numero,
-                      partition.fstype or "aucun système de fichiers",
-                      entree.taille * self.table.secteur, choix)
-            plans.append(Plan(entree, partition.chemin, choix, partition.fstype))
-        return plans
-
     def _valider(self) -> None:
         """§6.5 : toutes les cibles sont validées avant qu'une seule soit touchée."""
-        requis = self.table.taille_requise
+        requis = self.source.taille_requise
         for cible in self.cibles:
             disque = cible.disque
             motif = ""
             if disque.taille < requis:
                 motif = (f"trop petite : {_go(disque.taille)} pour {_go(requis)} requis")
-            elif disque.secteur_logique != self.source.secteur_logique:
+            elif disque.secteur_logique != self.source.secteur:
                 motif = (f"secteurs de {disque.secteur_logique} octets, "
-                         f"la source en a de {self.source.secteur_logique}")
+                         f"la source en a de {self.source.secteur}")
             elif disque.montee:
                 motif = "une de ses partitions est montée ou sert de swap"
             else:
@@ -263,12 +250,9 @@ class Clonage:
         aussi sera réécrite juste après, correctement, par sfdisk.
         """
         octets = self.table.debut_premiere_partition * self.table.secteur
-        fd_source = sysexec.ouvrir(self.source.chemin)
-        try:
-            tete = os.pread(fd_source, min(octets, 4096), 0)
-            self._diffuser(fd_source, octets, "tête du disque", lambda c: c.disque.chemin)
-        finally:
-            os.close(fd_source)
+        flux = self.source.ouvrir_tete()
+        tete = os.pread(flux.fd, min(octets, 4096), 0)
+        self._diffuser(flux, octets, "tête du disque", lambda c: c.disque.chemin)
         return tete
 
     def _ecrire_tables(self) -> None:
@@ -309,46 +293,38 @@ class Clonage:
         if moteur == filesystems.SWAP:
             self._recreer_swap(plan)
         elif moteur == filesystems.BRUT:
-            self._copier_brut(plan)
+            octets = plan.entree.taille * self.table.secteur
+            self._diffuser(self.source.flux_brut(plan, self.journal), octets,
+                           f"partition {numero}", lambda c: c.partitions[numero])
         else:
             self._copier_partclone(plan)
 
-    def _copier_brut(self, plan: Plan) -> None:
-        octets = plan.entree.taille * self.table.secteur
-        fd_source = sysexec.ouvrir(plan.chemin_source)
-        try:
-            self._diffuser(fd_source, octets, f"partition {plan.entree.numero}",
-                           lambda c: c.partitions[plan.entree.numero])
-        finally:
-            os.close(fd_source)
+        if plan.fstype == "ntfs" and moteur == filesystems.PARTCLONE:
+            self._copier_secours_ntfs(plan)
 
     def _copier_partclone(self, plan: Plan) -> None:
         numero = plan.entree.numero
         programme = plan.choix.programme
 
-        lecteur = self._lancer(
-            [programme, "-c", "-s", plan.chemin_source, "-o", "-",
-             "-L", self.journal.fichier(f"p{numero}_source_partclone.log")],
-            flux_sortant=True,
-            erreurs=self.journal.fichier(f"p{numero}_source.err"),
-        )
+        flux = self.source.flux_partclone(plan, self.journal)
+        lecteur = self._suivre(flux.processus)
 
         ecrivains: dict[str, sysexec.Processus] = {}
         for cible in list(self.actives):
             nom = "".join(c for c in cible.nom if c.isalnum())  # « port2 », « devloop2 »
             try:
-                ecrivains[cible.nom] = self._lancer(
+                ecrivains[cible.nom] = self._suivre(sysexec.Processus(
                     [programme, "-r", "-s", "-", "-o", cible.partitions[numero],
                      "-L", self.journal.fichier(f"p{numero}_{nom}_partclone.log")],
                     flux_entrant=True,
                     erreurs=self.journal.fichier(f"p{numero}_{nom}.err"),
-                )
+                ))
             except OSError as erreur:
                 cible.conclure(ECHEC, f"partition {numero} : {programme} impossible à lancer : {erreur}")
 
         cibles = [cible for cible in self.actives if cible.nom in ecrivains]
         diffusion = fanout.Diffusion(
-            lecteur.sortie,
+            flux.fd,
             [fanout.Destination(cible.nom, ecrivains[cible.nom].entree) for cible in cibles],
             delai_blocage=self.delai_blocage,
         )
@@ -363,15 +339,13 @@ class Clonage:
             for ecrivain in ecrivains.values():
                 ecrivain.fermer_entree()
 
-        fin_lecteur = lecteur.attendre(DELAI_FIN_PROCESSUS)
-        self._processus.remove(lecteur)
+        fin_lecteur = self._attendre(lecteur)
 
         for cible, suivi in zip(cibles, diffusion.cibles):
             ecrivain = ecrivains[cible.nom]
             if suivi.etat == BLOQUEE:
                 ecrivain.tuer()
-            fin_ecrivain = ecrivain.attendre(DELAI_FIN_PROCESSUS)
-            self._processus.remove(ecrivain)
+            fin_ecrivain = self._attendre(ecrivain)
 
             if suivi.etat == BLOQUEE:
                 cible.conclure(BLOQUEE, f"partition {numero} : {suivi.motif}")
@@ -386,39 +360,20 @@ class Clonage:
             elif suivi.etat != REUSSIE:
                 cible.conclure(ECHEC, f"partition {numero} : {suivi.motif}")
 
-        if plan.fstype == "ntfs":
-            self._copier_amorce_secours_ntfs(plan)
-
-    def _copier_amorce_secours_ntfs(self, plan: Plan) -> None:
-        """Recopie le secteur d'amorçage de secours d'un NTFS.
-
-        NTFS en garde une copie juste après la fin du volume, hors des clusters
-        que partclone transfère : sans ce complément, la cible garde à cet
-        endroit ce qu'elle contenait avant, et `ntfsfix` la déclare
-        incohérente. Sa position se lit dans le secteur d'amorçage lui-même :
-        octets par secteur à 0x0B, nombre de secteurs du volume à 0x28.
-        """
+    def _copier_secours_ntfs(self, plan: Plan) -> None:
+        """Le secteur d'amorçage de secours, que partclone ne copie pas
+        (voir `filesystems.secours_ntfs`)."""
         numero = plan.entree.numero
-        fd = sysexec.ouvrir(plan.chemin_source)
-        try:
-            amorce = os.pread(fd, 512, 0)
-            octets_par_secteur = int.from_bytes(amorce[0x0B:0x0D], "little")
-            secteurs = int.from_bytes(amorce[0x28:0x30], "little")
-            position = secteurs * octets_par_secteur
-            secours = os.pread(fd, octets_par_secteur, position)
-        finally:
-            os.close(fd)
-
-        if len(secours) != octets_par_secteur or secours[3:11] != b"NTFS    ":
-            _log.warning("partition %d : secteur d'amorçage de secours absent de la source, "
-                         "non recopié", numero)
+        secours = self.source.secours_ntfs(plan)
+        if secours is None:
+            _log.warning("partition %d : pas de secteur d'amorçage de secours à recopier", numero)
             return
-
+        position, contenu = secours
         for cible in self.actives:
             try:
                 fd = sysexec.ouvrir(cible.partitions[numero], ecriture=True)
                 try:
-                    os.pwrite(fd, secours, position)
+                    os.pwrite(fd, contenu, position)
                     os.fsync(fd)
                 finally:
                     os.close(fd)
@@ -427,20 +382,22 @@ class Clonage:
                                f"non écrit — {erreur.strerror}")
 
     def _recreer_swap(self, plan: Plan) -> None:
-        partition = next(p for p in self.source.partitions if p.numero == plan.entree.numero)
+        uuid, etiquette = self.source.swap(plan)
         argv = ["mkswap"]
-        if partition.uuid:
-            argv += ["-U", partition.uuid]
-        if partition.etiquette:
-            argv += ["-L", partition.etiquette]
+        if uuid:
+            argv += ["-U", uuid]
+        if etiquette:
+            argv += ["-L", etiquette]
         for cible in self.actives:
             resultat = sysexec.executer(argv + [cible.partitions[plan.entree.numero]])
             if not resultat.ok:
                 cible.conclure(ECHEC, f"partition {plan.entree.numero} : mkswap a échoué — "
                                + _derniere_ligne(resultat.erreur))
 
-    def _diffuser(self, fd_source: int, octets: int, quoi: str, chemin_de) -> None:
-        """Copie brute de `octets` octets vers le même emplacement de chaque cible."""
+    def _diffuser(self, flux: Flux, octets: int, quoi: str, chemin_de) -> None:
+        """Copie brute de `octets` octets du flux vers le même emplacement de
+        chaque cible."""
+        lecteur = self._suivre(flux.processus) if flux.processus else None
         cibles = []
         fds = []
         try:
@@ -452,7 +409,7 @@ class Clonage:
                     cible.conclure(ECHEC, f"{quoi} : ouverture impossible — {erreur.strerror}")
 
             diffusion = fanout.Diffusion(
-                fd_source,
+                flux.fd,
                 [fanout.Destination(cible.nom, fd) for cible, fd in zip(cibles, fds)],
                 limite=octets,
                 delai_blocage=self.delai_blocage,
@@ -462,7 +419,14 @@ class Clonage:
                 diffusion.executer()
             finally:
                 self.diffusion = None
+                if lecteur and not diffusion.fin_de_flux:
+                    lecteur.tuer()
 
+            if lecteur:
+                fin = self._attendre(lecteur)
+                if not fin.ok and not diffusion.motif_source:
+                    diffusion.motif_source = ("lecture de la source impossible — "
+                                              + _derniere_ligne(fin.erreur))
             if diffusion.octets_lus < octets and not diffusion.motif_source:
                 diffusion.motif_source = "source plus courte que prévu"
             for cible, suivi in zip(cibles, diffusion.cibles):
@@ -473,11 +437,18 @@ class Clonage:
         finally:
             for fd in fds:
                 os.close(fd)
+            if flux.a_fermer:
+                os.close(flux.fd)
 
-    def _lancer(self, argv, **options) -> sysexec.Processus:
-        processus = sysexec.Processus(argv, **options)
+    def _suivre(self, processus: sysexec.Processus) -> sysexec.Processus:
+        """Inscrit un programme pour qu'une interruption puisse l'arrêter."""
         self._processus.append(processus)
         return processus
+
+    def _attendre(self, processus: sysexec.Processus) -> sysexec.Resultat:
+        resultat = processus.attendre(DELAI_FIN_PROCESSUS)
+        self._processus.remove(processus)
+        return resultat
 
     # -------------------------------------------------------- vérification ---
 

@@ -19,6 +19,7 @@ sont confiés à partclone, dont l'échec éventuel est rapporté comme tel.
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass
 
 from . import sysexec
@@ -107,3 +108,29 @@ def _salete(partition: Partition, fstype: str) -> str:
         return f"{fstype} illisible (dumpe2fs)"
 
     return ""
+
+
+def secours_ntfs(chemin: str) -> tuple[int, bytes] | None:
+    """Le secteur d'amorçage de secours d'un NTFS, et sa position en octets.
+
+    NTFS en garde une copie juste après la fin du volume, hors des clusters que
+    partclone transfère : il faut la recopier à part, sans quoi la cible garde
+    à cet endroit ce qu'elle contenait avant et `ntfsfix` la déclare
+    incohérente. Sa position se lit dans le secteur d'amorçage lui-même :
+    octets par secteur à 0x0B, nombre de secteurs du volume à 0x28.
+    """
+    fd = sysexec.ouvrir(chemin)
+    try:
+        amorce = os.pread(fd, 512, 0)
+        octets_par_secteur = int.from_bytes(amorce[0x0B:0x0D], "little")
+        secteurs = int.from_bytes(amorce[0x28:0x30], "little")
+        if octets_par_secteur not in (512, 1024, 2048, 4096):
+            return None
+        position = secteurs * octets_par_secteur
+        secours = os.pread(fd, octets_par_secteur, position)
+    finally:
+        os.close(fd)
+    if len(secours) != octets_par_secteur or secours[3:11] != b"NTFS    ":
+        _log.warning("%s : secteur d'amorçage de secours introuvable", chemin)
+        return None
+    return position, secours

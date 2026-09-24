@@ -37,6 +37,10 @@ SECTEURS_GPT_SECOURS = 33
 
 _NUMERO_FINAL = re.compile(r"(\d+)$")
 
+# Un champ d'une ligne de partition de `sfdisk --dump` : clé=valeur, la valeur
+# pouvant être entre guillemets (name="EFI system partition").
+_CHAMP = re.compile(r'(\w[\w-]*)\s*=\s*(?:"((?:[^"\\]|\\.)*)"|([^,]*))')
+
 
 @dataclass
 class Entree:
@@ -128,6 +132,56 @@ def lire(chemin: str) -> Table:
         )
     table.entrees.sort(key=lambda entree: entree.numero)
 
+    if table.etiquette not in ("gpt", "dos"):
+        raise ErreurTable(f"table de type « {table.etiquette} » non gérée")
+    return table
+
+
+def depuis_description(description: str) -> Table:
+    """La table décrite par une sortie de `sfdisk --dump` — celle qu'une image
+    conserve dans `disque.sfdisk`. Lève ErreurTable si elle est inexploitable."""
+    entetes: dict[str, str] = {}
+    entrees: list[Entree] = []
+    for ligne in description.splitlines():
+        ligne = ligne.strip()
+        if not ligne:
+            continue
+        if " : " in ligne and "=" in ligne:
+            noeud, champs = ligne.split(" : ", 1)
+            numero = _numero(noeud.strip())
+            if numero is None:
+                raise ErreurTable(f"numéro de partition indéchiffrable : {noeud.strip()}")
+            valeurs = {
+                champ.group(1): (
+                    champ.group(2) if champ.group(2) is not None else champ.group(3)
+                ).strip()
+                for champ in _CHAMP.finditer(champs)
+            }
+            try:
+                entrees.append(
+                    Entree(
+                        numero=numero,
+                        debut=int(valeurs["start"]),
+                        taille=int(valeurs["size"]),
+                        type=valeurs.get("type", ""),
+                        uuid=valeurs.get("uuid"),
+                        nom=valeurs.get("name"),
+                        attributs=valeurs.get("attrs"),
+                    )
+                )
+            except (KeyError, ValueError) as erreur:
+                raise ErreurTable(f"ligne de partition illisible : {ligne}") from erreur
+        elif ":" in ligne:
+            cle, valeur = ligne.split(":", 1)
+            entetes[cle.strip()] = valeur.strip()
+
+    table = Table(
+        etiquette=entetes.get("label", ""),
+        identifiant=entetes.get("label-id"),
+        secteur=int(entetes.get("sector-size", 512)),
+        entrees=sorted(entrees, key=lambda entree: entree.numero),
+        description=description,
+    )
     if table.etiquette not in ("gpt", "dos"):
         raise ErreurTable(f"table de type « {table.etiquette} » non gérée")
     return table

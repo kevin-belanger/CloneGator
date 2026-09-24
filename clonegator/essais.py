@@ -19,8 +19,8 @@ import os
 import threading
 import time
 
-from . import devices, sysexec
-from .engine import clone, fanout
+from . import devices, image, storage, sysexec
+from .engine import backup, clone, fanout, sources
 from .journal import Journal
 
 Gio = 1024 * fanout.Mio
@@ -189,59 +189,176 @@ def _debit(octets_par_seconde: float) -> str:
 def cloner(ports: list[int] | None, delai_blocage: float) -> int:
     """Clone le port 1 vers les cibles, en attendant l'interface de la phase 4.
 
-    Source et cibles sont prises par leur rôle, jamais par leur chemin : P2
-    s'applique ici comme partout.
+    Source et cibles sont prises par leur rôle actuel, jamais par leur chemin.
     """
     disques = devices.inventaire()
     source = devices.source(disques)
     if source is None:
         print("Aucun disque dans le port 1.")
         return 1
-    cibles = [d for d in devices.cibles(disques) if ports is None or d.port in ports]
+    cibles = _cibles(disques, ports)
     if not cibles:
-        print("Aucune cible retenue.")
         return 1
 
     print(f"Source  port {source.port}  {source.description}  {_taille(source.taille)}"
           f"  s/n {source.serie}")
+    _annoncer_cibles(cibles)
+
+    with Journal("clonage") as journal:
+        clonage = clone.Clonage(source, cibles, journal, delai_blocage=delai_blocage)
+        _suivre(clonage)
+        return _rapport(clonage, journal)
+
+
+def images() -> int:
+    """Les disques d'images, et les images complètes de chacun."""
+    candidats = storage.candidats()
+    if not candidats:
+        print("Aucun disque USB de stockage monté.")
+        return 1
+    for candidat in candidats:
+        print(f"{candidat.disque.description}  ({candidat.disque.chemin}, {candidat.racine}, "
+              f"{candidat.fstype})  {_taille(candidat.libre)} libres")
+        if candidat.refus:
+            print(f"  refusé : {candidat.refus}")
+            continue
+        trouvees = image.lister(candidat.racine)
+        if not trouvees:
+            print("  aucune image")
+        for img in trouvees:
+            origine = img.origine
+            print(f"  {img.nom:<40} {img.mode:<5} {_taille(img.taille_sur_disque):>11}"
+                  f"   {origine.get('modele', '?')}, {_taille(int(origine.get('taille', 0)))}")
+    return 0
+
+
+def sauvegarder(etiquette: str, brut: bool, serie_stockage: str | None,
+                delai_blocage: float) -> int:
+    """Sauvegarde le disque du port 1 vers une image sur le disque USB."""
+    source = devices.source(devices.inventaire())
+    if source is None:
+        print("Aucun disque dans le port 1.")
+        return 1
+    destination = _stockage(serie_stockage)
+    if destination is None:
+        return 1
+
+    print(f"Source   port {source.port}  {source.description}  {_taille(source.taille)}"
+          f"  s/n {source.serie}")
+    print(f"Images   {destination.disque.description} ({destination.racine}), "
+          f"{_taille(destination.libre)} libres")
+    print(f"Mode     {'brut intégral — LENT' if brut else 'automatique'}")
+    print()
+
+    with Journal("sauvegarde") as journal:
+        sauvegarde = backup.Sauvegarde(source, destination.racine, etiquette, journal,
+                                       brut=brut, delai_blocage=delai_blocage)
+        _suivre(sauvegarde)
+        print()
+        print(f"Durée totale : {sauvegarde.duree / 60:.1f} min")
+        print(f"Verdict : {sauvegarde.etat.upper()}"
+              + (f" — {sauvegarde.motif}" if sauvegarde.motif else ""))
+        for avertissement in sauvegarde.avertissements:
+            print(f"  ⚠ {avertissement}")
+        if sauvegarde.etat == backup.REUSSIE:
+            print(f"Image : {sauvegarde.dossier} ({_taille(image.lire(sauvegarde.dossier).taille_sur_disque)})")
+        else:
+            print(f"Dossier laissé incomplet, jamais proposé à la restauration : {sauvegarde.dossier}")
+        print(f"Journal : {journal.dossier}")
+    return 0 if sauvegarde.etat == backup.REUSSIE else 2
+
+
+def restaurer(nom: str, ports: list[int] | None, sans_verification: bool,
+              delai_blocage: float) -> int:
+    """Restaure une image du disque USB vers les cibles."""
+    trouvee = None
+    for candidat in storage.candidats():
+        if candidat.utilisable:
+            trouvee = next((i for i in image.lister(candidat.racine) if i.nom == nom), trouvee)
+    if trouvee is None:
+        print(f"Aucune image complète « {nom} ». La liste : python3 -m clonegator images")
+        return 1
+    if sans_verification and trouvee.mode != image.MODE_BRUT:
+        print("La vérification des empreintes ne se saute que pour une image brute (§8).")
+        return 1
+
+    cibles = _cibles(devices.inventaire(), ports)
+    if not cibles:
+        return 1
+    print(f"Image   {trouvee.nom}  ({trouvee.mode}, {_taille(trouvee.taille_sur_disque)}), "
+          f"taille requise {_taille(trouvee.taille_requise)}")
+    _annoncer_cibles(cibles)
+
+    with Journal("restauration") as journal:
+        clonage = clone.Clonage(sources.SourceImage(trouvee, verifier=not sans_verification),
+                                cibles, journal, delai_blocage=delai_blocage)
+        _suivre(clonage)
+        return _rapport(clonage, journal)
+
+
+# ------------------------------------------------------------- affichage ---
+
+def _cibles(disques, ports):
+    cibles = [d for d in devices.cibles(disques) if ports is None or d.port in ports]
+    if not cibles:
+        print("Aucune cible retenue.")
+    return cibles
+
+
+def _annoncer_cibles(cibles) -> None:
     for cible in cibles:
         print(f"Cible   port {cible.port}  {cible.description}  {_taille(cible.taille)}"
               f"  s/n {cible.serie}")
     print()
 
-    with Journal("clonage") as journal:
-        clonage = clone.Clonage(source, cibles, journal, delai_blocage=delai_blocage)
-        fil = threading.Thread(target=clonage.executer, name="clonage")
-        fil.start()
-        derniere_etape = None
-        try:
-            while fil.is_alive():
-                fil.join(timeout=2.0)
-                if clonage.etape != derniere_etape:
-                    if derniere_etape is not None:
-                        print()
-                    print(f"— {clonage.etape}")
-                    derniere_etape = clonage.etape
-                diffusion = clonage.diffusion
-                if diffusion is not None:
-                    _afficher_progression_clonage(diffusion)
-        except KeyboardInterrupt:
-            print("\nInterruption demandée…")
-            clonage.arreter()
-            fil.join()
 
-        print()
-        print(f"Durée totale : {clonage.duree / 60:.1f} min")
-        print()
-        print(f"{'Cible':<8} {'Numéro de série':<18} Verdict")
-        for cible in clonage.cibles:
-            print(f"port {cible.disque.port:<3} {cible.disque.serie:<18} {cible.etat.upper()}"
-                  + (f" — {cible.motif}" if cible.motif else ""))
-            for avertissement in cible.avertissements:
-                print(f"{'':<27}  ⚠ {avertissement}")
-        print()
-        print(f"Journal : {journal.dossier}")
+def _stockage(serie: str | None):
+    candidats = [c for c in storage.candidats() if c.utilisable]
+    if serie:
+        candidats = [c for c in candidats if c.disque.serie == serie]
+    if len(candidats) == 1:
+        return candidats[0]
+    if not candidats:
+        print("Aucun disque USB de stockage utilisable. La liste : python3 -m clonegator images")
+    else:
+        print("Plusieurs disques de stockage : préciser --stockage <numéro de série>.")
+    return None
 
+
+def _suivre(operation) -> None:
+    """Lance l'opération dans un fil et affiche sa progression jusqu'à la fin."""
+    fil = threading.Thread(target=operation.executer, name="operation")
+    fil.start()
+    derniere_etape = None
+    try:
+        while fil.is_alive():
+            fil.join(timeout=2.0)
+            if operation.etape != derniere_etape:
+                if derniere_etape is not None:
+                    print()
+                print(f"— {operation.etape}")
+                derniere_etape = operation.etape
+            diffusion = operation.diffusion
+            if diffusion is not None:
+                _afficher_progression_clonage(diffusion)
+    except KeyboardInterrupt:
+        print("\nInterruption demandée…")
+        operation.arreter()
+        fil.join()
+
+
+def _rapport(clonage, journal) -> int:
+    print()
+    print(f"Durée totale : {clonage.duree / 60:.1f} min")
+    print()
+    print(f"{'Cible':<8} {'Numéro de série':<18} Verdict")
+    for cible in clonage.cibles:
+        print(f"{cible.nom:<8} {cible.disque.serie:<18} {cible.etat.upper()}"
+              + (f" — {cible.motif}" if cible.motif else ""))
+        for avertissement in cible.avertissements:
+            print(f"{'':<27}  ⚠ {avertissement}")
+    print()
+    print(f"Journal : {journal.dossier}")
     return 0 if all(c.etat == clone.REUSSIE for c in clonage.cibles) else 2
 
 

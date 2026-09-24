@@ -190,6 +190,26 @@ def decrire(chemin: str) -> Disque | None:
     return _disque_depuis(noeud, ports_occupes())
 
 
+def montages(chemin: str) -> list[tuple[str, str]]:
+    """Les systèmes de fichiers montés d'un disque, à toute profondeur :
+    (point de montage, type). Celui d'un volume LVM, par exemple, est un
+    petit-enfant du disque, pas une de ses partitions."""
+    brut = sysexec.executer_json(
+        ["lsblk", "--json", "--tree", "-o", "PATH,FSTYPE,MOUNTPOINT", chemin]
+    )
+    trouves: list[tuple[str, str]] = []
+
+    def parcourir(noeud: dict) -> None:
+        if noeud.get("mountpoint") and not noeud["mountpoint"].startswith("["):  # [SWAP]
+            trouves.append((noeud["mountpoint"], noeud.get("fstype") or ""))
+        for enfant in noeud.get("children", []) or []:
+            parcourir(enfant)
+
+    for noeud in (brut or {}).get("blockdevices", []):
+        parcourir(noeud)
+    return trouves
+
+
 def par_role(disques: list[Disque], role: str) -> list[Disque]:
     return [disque for disque in disques if disque.role == role]
 

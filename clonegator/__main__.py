@@ -147,6 +147,18 @@ def cmd_cloner(args) -> int:
     return essais.cloner(ports=args.ports, delai_blocage=args.delai)
 
 
+def cmd_images(_args) -> int:
+    return essais.images()
+
+
+def cmd_sauvegarder(args) -> int:
+    return essais.sauvegarder(args.etiquette, args.brut, args.stockage, args.delai)
+
+
+def cmd_restaurer(args) -> int:
+    return essais.restaurer(args.image, args.ports, args.sans_verification, args.delai)
+
+
 def cmd_version(_args) -> int:
     print(VERSION)
     return 0
@@ -196,6 +208,31 @@ def construire_analyseur() -> argparse.ArgumentParser:
         "--delai", type=float, default=60, help="délai de blocage en secondes (défaut : 60)"
     )
     cloner.set_defaults(fonction=cmd_cloner)
+
+    sous.add_parser(
+        "images", help="liste les disques de stockage et leurs images"
+    ).set_defaults(fonction=cmd_images)
+
+    sauvegarde = sous.add_parser(
+        "sauvegarder", help="sauvegarde le port 1 vers une image sur le disque USB"
+    )
+    sauvegarde.add_argument("etiquette", help="nom court de l'image, ex. Win11-labo")
+    sauvegarde.add_argument("--brut", action="store_true",
+                            help="copie brute intégrale du disque (lent, §6.3)")
+    sauvegarde.add_argument("--stockage", help="numéro de série du disque d'images, s'il y en a plusieurs")
+    sauvegarde.add_argument("--delai", type=float, default=60, help="délai de blocage en secondes")
+    sauvegarde.set_defaults(fonction=cmd_sauvegarder)
+
+    restauration = sous.add_parser(
+        "restaurer", help="restaure une image vers les cibles (ÉCRASE LES CIBLES)"
+    )
+    restauration.add_argument("image", help="nom du dossier de l'image (voir « images »)")
+    restauration.add_argument("--ports", type=int, nargs="+",
+                              help="ports cibles (défaut : toutes les cibles)")
+    restauration.add_argument("--sans-verification", action="store_true",
+                              help="image brute seulement : ne pas relire les empreintes")
+    restauration.add_argument("--delai", type=float, default=60, help="délai de blocage en secondes")
+    restauration.set_defaults(fonction=cmd_restaurer)
 
     sous.add_parser(
         "version", help="affiche la version"
