@@ -7,7 +7,7 @@ rien dire.
 
 Ici, chaque destination a son propre fil d'écriture et sa propre file d'attente
 bornée. Le fil de lecture dépose chaque bloc dans toutes les files ; un bloc
-n'est jamais copié, les files partagent le même objet `bytes`.
+n'est jamais copié, les files partagent le même tampon.
 
 Ce que ce module garantit (§6.4 de l'analyse) :
 
@@ -27,6 +27,7 @@ et ne les ferme pas : ils appartiennent à l'appelant.
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import logging
 import os
@@ -49,6 +50,11 @@ INTERROMPUE = "interrompue"
 
 # Marque de fin de flux déposée dans chaque file.
 _FIN = None
+
+# Capacité demandée pour les tubes. Le défaut de Linux, 64 Kio, impose un
+# aller-retour avec le noyau tous les 64 Kio ; 1 Mio est le plafond accordé
+# sans réglage système.
+_TAILLE_TUBE = 1024 * 1024
 
 # Période à laquelle le fil de lecture, bloqué sur une file pleine, revient
 # vérifier l'état de la destination et le délai de blocage.
@@ -134,7 +140,6 @@ class Diffusion:
         taille_bloc: int = 4 * Mio,
         tampon: int = 64 * Mio,
         delai_blocage: float = 60.0,
-        synchro_tous_les: int = 256 * Mio,
         limite: int | None = None,
         empreinte: bool = False,
     ):
@@ -143,20 +148,20 @@ class Diffusion:
         tampon            mémoire allouée à chaque destination
         delai_blocage     secondes sans aucune activité, file pleine, avant
                           d'abandonner une destination
-        synchro_tous_les  les disques et fichiers sont synchronisés à ce rythme,
-                          pour qu'une erreur d'écriture remonte pendant la copie
-                          et non à la toute fin
         limite            nombre d'octets à diffuser au plus
         empreinte         calcule le SHA-256 de ce qui a été lu
         """
         self.source = source
         self.taille_bloc = taille_bloc
         self.delai_blocage = delai_blocage
-        self.synchro_tous_les = synchro_tous_les
         self.limite = limite
         self.octets_lus = 0
         self.motif_source = ""
         self.empreinte_source: str | None = None
+
+        _agrandir_tube(source)
+        for destination in destinations:
+            _agrandir_tube(destination.fd)
 
         self._hachage = hashlib.sha256() if empreinte else None
         self._arret = threading.Event()
@@ -227,7 +232,7 @@ class Diffusion:
                     return
 
             try:
-                bloc = os.read(self.source, taille)
+                bloc = _remplir(self.source, taille)
             except OSError as erreur:
                 self.motif_source = f"lecture de la source impossible : {erreur}"
                 _log.error("%s", self.motif_source)
@@ -243,7 +248,7 @@ class Diffusion:
             for voie in self._voies:
                 self._deposer(voie, bloc)
 
-    def _deposer(self, voie: _Voie, bloc: bytes | None) -> None:
+    def _deposer(self, voie: _Voie, bloc: bytearray | None) -> None:
         """Remet un bloc à une destination, sans jamais attendre indéfiniment."""
         while voie.cible.active:
             try:
@@ -291,7 +296,6 @@ class Diffusion:
     def _ecrire(self, voie: _Voie) -> None:
         cible = voie.cible
         fd = voie.destination.fd
-        depuis_synchro = 0
 
         try:
             while cible.active:
@@ -312,12 +316,6 @@ class Diffusion:
                 cible.octets += len(bloc)
                 cible.dernier_progres = time.monotonic()
 
-                depuis_synchro += len(bloc)
-                if voie.synchroniser and depuis_synchro >= self.synchro_tous_les:
-                    _synchroniser(fd)
-                    cible.dernier_progres = time.monotonic()
-                    depuis_synchro = 0
-
         except OSError as erreur:
             voie.conclure(ECHEC, _decrire(erreur))
         except Exception as erreur:
@@ -327,7 +325,35 @@ class Diffusion:
             _vider(voie.file)
 
 
-def _ecrire_tout(fd: int, bloc: bytes, voie: _Voie) -> None:
+def _remplir(fd: int, taille: int) -> bytearray:
+    """Lit exactement `taille` octets, ou moins seulement en fin de flux.
+
+    Sur un tube, un `read` ne rend que ce qui est disponible : 64 Kio au plus
+    par défaut, quelle que soit la taille demandée. Sans cette boucle, la
+    source `partclone` de la phase 2 produirait des blocs 64 fois plus petits
+    que prévu, et le tampon de chaque destination fondrait d'autant.
+    """
+    bloc = bytearray(taille)
+    with memoryview(bloc) as vue:
+        rempli = 0
+        while rempli < taille:
+            lu = os.readv(fd, [vue[rempli:]])
+            if lu == 0:
+                break
+            rempli += lu
+    del bloc[rempli:]
+    return bloc
+
+
+def _agrandir_tube(fd: int) -> None:
+    try:
+        if stat.S_ISFIFO(os.fstat(fd).st_mode):
+            fcntl.fcntl(fd, fcntl.F_SETPIPE_SZ, _TAILLE_TUBE)
+    except OSError as erreur:
+        _log.debug("tube laissé à sa taille par défaut (%s)", erreur)
+
+
+def _ecrire_tout(fd: int, bloc: bytearray, voie: _Voie) -> None:
     """`os.write` peut écrire moins que demandé, notamment dans un tube."""
     vue = memoryview(bloc)
     while vue and voie.cible.active:
@@ -347,9 +373,15 @@ def _synchronisable(fd: int) -> bool:
 def _synchroniser(fd: int) -> None:
     """Force l'écriture physique, puis libère le cache de ce qui a été écrit.
 
-    Sans `fsync`, une erreur d'écriture ne remonterait qu'à la fermeture, et un
-    disque défaillant passerait pour réussi. Libérer le cache ensuite évite que
-    cinq disques de 500 Go ne se disputent la mémoire de la station.
+    Une seule fois, en fin de flux. Le noyau retient toute erreur d'écriture
+    différée et la rend ici : sans ce `fsync`, un disque défaillant passerait
+    pour réussi. Pendant la copie, un disque mort se trahit autrement — le
+    noyau cesse d'accepter ses écritures quand son cache est plein, et la
+    détection de blocage prend le relais.
+
+    Synchroniser en cours de route coûtait cher : sur les baies, cinq SSD
+    passaient de 286 à environ 200 Mo/s avec un `fsync` tous les 256 Mio,
+    chaque synchronisation figeant la cible le temps de vider son cache.
     """
     os.fsync(fd)
     try:

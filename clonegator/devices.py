@@ -187,6 +187,37 @@ def stockages(disques: list[Disque]) -> list[Disque]:
     return par_role(disques, ROLE_STOCKAGE)
 
 
+def proteger(disque: Disque) -> bool:
+    """Passe le disque et chacune de ses partitions en lecture seule noyau.
+
+    C'est P1 : le disque du port 1 n'est jamais écrit. Le drapeau porte sur
+    chaque périphérique séparément — protéger /dev/sdX laisserait /dev/sdX3
+    inscriptible —, d'où la boucle sur les partitions. Revient à False si un
+    seul d'entre eux n'a pas pu être protégé.
+
+    Le noyau n'applique pas ce drapeau à l'ouverture mais à chaque écriture :
+    un `open` en écriture réussit, le `write` échoue (EPERM). Vérifié sur les
+    baies en réécrivant à l'identique un bloc du disque et de chaque partition.
+    """
+    return _poser_lecture_seule(disque, True)
+
+
+def liberer(disque: Disque) -> bool:
+    """Rend au disque son état normal, en fin d'opération (§13)."""
+    return _poser_lecture_seule(disque, False)
+
+
+def _poser_lecture_seule(disque: Disque, lecture_seule: bool) -> bool:
+    option = "--setro" if lecture_seule else "--setrw"
+    chemins = [disque.chemin] + [partition.chemin for partition in disque.partitions]
+    ok = True
+    for chemin in chemins:
+        if not sysexec.executer(["blockdev", option, chemin]).ok:
+            _log.error("blockdev %s a échoué sur %s", option, chemin)
+            ok = False
+    return ok
+
+
 def _disque_depuis(noeud: dict, ports: dict[str, int]) -> Disque:
     chemin = noeud.get("path") or ""
     reel = sysexec.chemin_reel(chemin) if chemin else None

@@ -156,7 +156,7 @@ class CinqDestinations(unittest.TestCase):
                 self.assertEqual(consommateur.empreinte.hexdigest(), attendue)
 
     def test_vers_des_fichiers(self):
-        """Des fichiers ordinaires : la synchronisation périodique est exercée."""
+        """Des fichiers ordinaires : la synchronisation finale est exercée."""
         source = SourceGeneree(32 * Mio)
         with tempfile.TemporaryDirectory() as dossier:
             chemins = [os.path.join(dossier, f"cible{n}") for n in range(3)]
@@ -165,7 +165,6 @@ class CinqDestinations(unittest.TestCase):
                 diffusion = Diffusion(
                     source.lecture,
                     [Destination(os.path.basename(c), fd) for c, fd in zip(chemins, fds)],
-                    synchro_tous_les=4 * Mio,
                 )
                 diffusion.executer()
             finally:
@@ -193,6 +192,23 @@ class CinqDestinations(unittest.TestCase):
         for consommateur, cible in zip(consommateurs, diffusion.cibles):
             self.assertEqual(cible.etat, fanout.REUSSIE)
             self.assertEqual(consommateur.recu, 5 * Mio + 17)
+
+
+class LectureDepuisUnTube(unittest.TestCase):
+    """Un tube ne rend que ce qu'il contient : le moteur doit remplir ses blocs."""
+
+    def test_blocs_pleins_depuis_un_tube(self):
+        source = SourceGeneree(10 * Mio, bloc=Mio)
+        try:
+            tailles = []
+            while True:
+                bloc = fanout._remplir(source.lecture, 4 * Mio)
+                if not bloc:
+                    break
+                tailles.append(len(bloc))
+        finally:
+            source.fermer()
+        self.assertEqual(tailles, [4 * Mio, 4 * Mio, 2 * Mio])
 
 
 class UneDestinationTombe(unittest.TestCase):

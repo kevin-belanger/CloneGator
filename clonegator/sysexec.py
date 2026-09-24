@@ -156,6 +156,22 @@ def chemin_reel(chemin: str) -> str | None:
         return None
 
 
+def ouvrir(chemin: str, ecriture: bool = False) -> int:
+    """Ouvre un disque ou un fichier et rend son descripteur.
+
+    En écriture, un disque est ouvert en exclusivité (O_EXCL) : le noyau refuse
+    si quelqu'un d'autre le tient déjà. Lève OSError en cas d'échec ; le
+    descripteur appartient à l'appelant, qui le ferme.
+    """
+    if ecriture:
+        drapeaux = os.O_WRONLY | os.O_EXCL
+    else:
+        drapeaux = os.O_RDONLY
+    fd = os.open(chemin, drapeaux | os.O_CLOEXEC)
+    _log.debug("ouvert %s en %s (fd %d)", chemin, "écriture" if ecriture else "lecture", fd)
+    return fd
+
+
 def _texte(brut: bytes | str | None) -> str:
     if brut is None:
         return ""

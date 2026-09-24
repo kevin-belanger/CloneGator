@@ -11,7 +11,7 @@ import argparse
 import logging
 import sys
 
-from . import VERSION, devices
+from . import VERSION, devices, essais
 
 _ETIQUETTES = {
     devices.ROLE_SOURCE: "SOURCE",
@@ -135,6 +135,14 @@ def cmd_disques(_args) -> int:
     return 0
 
 
+def cmd_essai_diffusion(args) -> int:
+    return essais.essai_diffusion(
+        volume=int(args.volume * essais.Gio),
+        ports=args.ports,
+        delai_blocage=args.delai,
+    )
+
+
 def cmd_version(_args) -> int:
     print(VERSION)
     return 0
@@ -160,6 +168,19 @@ def construire_analyseur() -> argparse.ArgumentParser:
     sous.add_parser(
         "disques", help="vue brute, une ligne par disque et par partition"
     ).set_defaults(fonction=cmd_disques)
+
+    essai = sous.add_parser(
+        "essai-diffusion",
+        help="diffuse le début du port 1 vers les cibles et vérifie (ÉCRASE LES CIBLES)",
+    )
+    essai.add_argument("--volume", type=float, default=8, help="en Gio (défaut : 8)")
+    essai.add_argument(
+        "--ports", type=int, nargs="+", help="ports cibles (défaut : toutes les cibles)"
+    )
+    essai.add_argument(
+        "--delai", type=float, default=60, help="délai de blocage en secondes (défaut : 60)"
+    )
+    essai.set_defaults(fonction=cmd_essai_diffusion)
 
     sous.add_parser(
         "version", help="affiche la version"
