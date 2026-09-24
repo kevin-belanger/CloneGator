@@ -1,6 +1,6 @@
 # CloneGator — Plan de développement
 
-Compagnon de [ANALYSE-FONCTIONNELLE.md](ANALYSE-FONCTIONNELLE.md), révision 0.4.
+Compagnon de [ANALYSE-FONCTIONNELLE.md](ANALYSE-FONCTIONNELLE.md), révision 0.5.
 Les renvois `§n` pointent vers l'analyse.
 
 | Rév. | Date | Auteur | Changement |
@@ -9,6 +9,7 @@ Les renvois `§n` pointent vers l'analyse.
 | 0.2 | 2026-09-16 | Kevin + Claude | Deux stations disponibles pour le développement : essais sur matériel réel en continu, l'ancienne phase 5 est dissoute. Ajout du critère « la cible démarre » |
 | 0.3 | 2026-09-16 | Kevin | Pas de garde-fou de développement supplémentaire. P2 suffit : le système et Claude Code vivent sur USB, et le code exclut les USB de toute écriture. On code d'abord, on traitera les problèmes quand ils se présenteront |
 | 0.4 | 2026-09-24 | Kevin + Claude | Phase 1 terminée et mesurée sur les baies. Le banc en boucle n'est plus le « niveau rapide » : les SSD des baies sont assez rapides pour itérer. Il devient une fabrique de sources et de cibles impossibles à obtenir sur les baies sans sacrifier le maître. Pannes de cibles simulées par `/sys` sur les vrais disques |
+| 0.5 | 2026-09-24 | Kevin + Claude | Phase 2 terminée : un Windows cloné vers cinq cibles démarre sur cinq machines différentes. Résultats et enseignements consignés |
 
 ---
 
@@ -203,7 +204,7 @@ Ce que la mesure a appris, et qu'on n'aurait pas deviné :
   essai de P1 doit donc écrire, pas seulement ouvrir — en réécrivant à l'identique pour ne rien
   risquer.
 
-### Phase 2 — Tables de partitions et clonage · taille L
+### Phase 2 — Tables de partitions et clonage · taille L · **terminée le 2026-09-24**
 
 - `layout` : lecture de la table (`sfdisk --json` donne directement du JSON exploitable),
   **énumération des numéros réels** de partition, reproduction sur la cible, repositionnement de
@@ -220,6 +221,34 @@ sur les trois, y compris depuis une source du banc aux numéros non contigus ; u
 écartée **avant** que la moindre écriture ait lieu sur les autres ; et surtout — **un vrai
 disque Windows cloné vers deux vraies cibles démarre sur une machine**. C'est le critère
 d'acceptation réel du projet, et c'est la première fois qu'on peut le vérifier.
+
+**Résultat.** `layout`, `filesystems`, `verify`, `journal`, `engine/clone` et la sous-commande
+`cloner`. Essais automatiques du banc : `python3 -m unittest tests.test_clone_banc`.
+
+| Essai | Résultat |
+|-------|----------|
+| Windows 11 du port 1 (GPT, 5 partitions, 23 Go utilisés) → cinq cibles | 5 réussies en 2,2 min |
+| les cinq cibles démarrées sur cinq machines différentes (Kevin) | **démarrage normal, aucun message** |
+| contre-vérification du port 2 : partition EFI, fichiers de C: | identiques, 268 621 fichiers des deux côtés |
+| source du banc numérotée 1-2-3-5 → trois cibles des baies | 1-2-3-5 sur les trois, GPT sans défaut |
+| source GPT du banc → cible trop petite parmi trois | écartée avant toute écriture, les autres conformes au manifeste |
+| cible du banc portant une ancienne table MBR et un ext4 | aucune trace de l'ancien contenu |
+| cible des baies dont une partition est montée | écartée, sa table intacte |
+
+Ce que les essais ont appris :
+
+- **partclone ne copie pas le secteur d'amorçage de secours de NTFS**, logé juste après la fin
+  du volume, hors des clusters. La vérification légère l'a trouvé au premier essai : `ntfsfix`
+  déclarait la cible incohérente. Le moteur recopie ce secteur, à la position que donne le
+  secteur d'amorçage lui-même.
+- **Les GUID sont reproduits à l'identique**, disque et partitions : le chargeur de Windows
+  désigne ses partitions par eux. Deux clones ne doivent donc pas être branchés dans la même
+  machine, comme deux copies de n'importe quel disque.
+- **Une partition sans système de fichiers n'est pas une anomalie** : la partition réservée
+  de Windows n'en a jamais. Elle est copiée en brut sans avertissement ; l'avertissement du
+  §6.2 est réservé aux systèmes de fichiers sales.
+- **Les noms `/dev/sdX` changent** quand on retire et remet les disques : après le test de
+  démarrage, le port 6 était passé de `sdb` à `sdg`. Le logiciel ne raisonne qu'en ports (P3).
 
 ### Phase 3 — Images · taille M
 

@@ -23,9 +23,14 @@ Elle est appliquée à un seul endroit — l'attribution du rôle dans
 
 ## État
 
-Phase 1 terminée : le moteur de diffusion lit une source une seule fois et écrit
-vers N cibles indépendantes, avec un verdict par cible. Le clonage partition par
-partition est la phase 2.
+Phase 2 terminée : le clonage direct fonctionne. Un disque Windows cloné vers
+cinq cibles démarre sur cinq machines. La source est lue une seule fois, chaque
+partition est copiée avec le moteur choisi pour elle, et chaque cible reçoit son
+propre verdict. Sauvegarde et restauration d'images : phase 3.
+
+```bash
+python3 -m clonegator cloner
+```
 
 ```bash
 python3 -m clonegator inventaire

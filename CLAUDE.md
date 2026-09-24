@@ -58,20 +58,23 @@ fonctions, commentaires, messages de commit. S'y tenir.
 
 ## Où on en est
 
-Phase 1 terminée : le moteur de diffusion (`engine/fanout.py`) lit une source une
-fois et écrit N cibles indépendantes, un verdict par cible. Mesuré sur les baies
-(résultats au plan, phase 1). Seul `essai-diffusion` écrit sur des disques.
+Phases 1 et 2 terminées. Un disque Windows cloné vers cinq cibles démarre sur
+cinq machines ; résultats et enseignements au plan. `cloner` et
+`essai-diffusion` écrivent sur les cibles, jamais sur le port 1.
 
 ```bash
 python3 -m clonegator inventaire
 python3 -m clonegator disques
 python3 -m clonegator -v disques     # journalise chaque commande système
-python3 -m unittest tests.test_fanout
+python3 -m unittest tests.test_fanout tests.test_clone_banc
+python3 -m clonegator cloner                       # ÉCRASE les cibles
 python3 -m clonegator essai-diffusion --volume 8   # ÉCRASE les cibles, relit et compare
 ```
 
-Prochaine étape : phase 2, tables de partitions et clonage partition par
-partition. Le jalon du projet : un disque Windows cloné qui démarre.
+Journaux d'opération : `/var/log/clonegator/<date>_<opération>/`.
+
+Prochaine étape : phase 3, les images — sauvegarde du port 1 vers un disque
+USB, restauration vers les cibles.
 
 ## Essais
 
