@@ -1,6 +1,6 @@
 # CloneGator — Plan de développement
 
-Compagnon de [ANALYSE-FONCTIONNELLE.md](ANALYSE-FONCTIONNELLE.md), révision 0.5.
+Compagnon de [ANALYSE-FONCTIONNELLE.md](ANALYSE-FONCTIONNELLE.md), révision 0.6.
 Les renvois `§n` pointent vers l'analyse.
 
 | Rév. | Date | Auteur | Changement |
@@ -10,6 +10,7 @@ Les renvois `§n` pointent vers l'analyse.
 | 0.3 | 2026-09-16 | Kevin | Pas de garde-fou de développement supplémentaire. P2 suffit : le système et Claude Code vivent sur USB, et le code exclut les USB de toute écriture. On code d'abord, on traitera les problèmes quand ils se présenteront |
 | 0.4 | 2026-09-24 | Kevin + Claude | Phase 1 terminée et mesurée sur les baies. Le banc en boucle n'est plus le « niveau rapide » : les SSD des baies sont assez rapides pour itérer. Il devient une fabrique de sources et de cibles impossibles à obtenir sur les baies sans sacrifier le maître. Pannes de cibles simulées par `/sys` sur les vrais disques |
 | 0.5 | 2026-09-24 | Kevin + Claude | Phase 2 terminée : un Windows cloné vers cinq cibles démarre sur cinq machines différentes. Résultats et enseignements consignés |
+| 0.6 | 2026-09-24 | Kevin + Claude | Analyse 0.4 : mode libre par défaut et mode station en raccourci, emplacements, P1 et P2 reformulés, format d'image arrêté. La phase 3 fait de la restauration un clonage dont la source est une image ; la phase 4 porte les emplacements, les modes et les filets de P2. Note de transition sur les rôles du code actuel |
 
 ---
 
@@ -85,17 +86,17 @@ peut attendre la phase de l'interface.
   C'est elle qui valide la phase 5.
 
 **Pas de garde-fou de développement supplémentaire.** Décision de Kevin, révision 0.3. Le
-système de la station et Claude Code vivent sur un disque USB, et P2 exclut tout disque USB de
-la moindre écriture : la machine de travail est protégée par la règle même qu'on écrit. Les
-disques présents dans les baies sont des disques d'essai, sacrifiés par définition.
+système de la station et Claude Code vivent sur un disque USB utilisé par le système : le premier
+filet de P2 le protège, et le noyau lui-même refuse de l'ouvrir en exclusivité. La machine de
+travail est protégée par la règle même qu'on écrit. Les disques présents dans les baies sont des
+disques d'essai, sacrifiés par définition.
 
 Une couche de sécurité de plus alourdirait un projet qui démarre sans rien protéger de réel. On
 code, et si un problème se présente, on le traite à ce moment-là.
 
-**Conséquence sur le code :** P2 n'est pas une vérification parmi d'autres, c'est la règle
-porteuse. Elle vit à un seul endroit — l'attribution du rôle d'un disque dans `devices.py` — et
-un disque dont le bus est `usb` n'y obtient jamais le rôle source ni cible. Tout le reste en
-découle.
+**Conséquence sur le code :** les règles qui décident ce qu'un disque peut devenir — emplacement,
+mode, filets de P2 — vivent à un seul endroit, `devices.py`. Le moteur ne regarde jamais le rôle
+d'un disque : il copie ce qu'on lui donne. Tout le reste en découle.
 
 ---
 
@@ -105,23 +106,24 @@ découle.
 clonegator/
   __main__.py        point d'entrée, sous-commandes de développement
   sysexec.py         exécution des commandes externes : délai, capture, journal
-  devices.py         inventaire des disques — deux fournisseurs, réel et simulé
+  devices.py         inventaire, emplacements (§3.1), filets de P2 — le seul endroit où se
+                     décide ce qu'un disque peut devenir
   layout.py          tables de partitions : lecture, numéros réels, reproduction
   filesystems.py     détection du contenu et choix du moteur par partition (§6.2)
   storage.py         disques USB de stockage : candidats, espace libre, refus FAT32
   health.py          état SMART (§12)
   engine/
     fanout.py        une lecture → N écritures indépendantes, verdict par cible
-    clone.py         disque → disques (§6)
+    clone.py         une source → N disques (§6) ; la source d'une partition est un disque
+                     ou un fichier d'image, et la restauration (§8) n'est que ce second cas
     backup.py        disque → image (§7)
-    restore.py       image → disques (§8)
-  image.py           format d'image : métadonnées, nommage, empreintes, marque « incomplet »
+  image.py           format d'image (§7.2) : métadonnées, LISEZMOI, empreintes, complétude
   verify.py          vérification légère (§11)
   journal.py         journal d'opération (§10)
   ui/
     model.py         état affiché, sans curses — testable seul
     screens.py       rendu curses (§9)
-  config.py
+  config.py          réglages, dont le mode station (§3.3), dans /etc/clonegator/
 ```
 
 Deux séparations méritent qu'on y tienne :
@@ -252,17 +254,31 @@ Ce que les essais ont appris :
 
 ### Phase 3 — Images · taille M
 
-- `image` : le format du §7.2, les deux modes, la marque « incomplet »
+- `image` : le format du §7.2 — `clonegator.json` écrit en dernier, `LISEZMOI.txt`, empreintes
+  au format `sha256sum`, les deux modes
 - `storage` : candidats USB, espace libre, refus explicite de FAT32
-- `engine/backup` et `engine/restore`
+- `engine/clone` : la source de chaque partition devient interchangeable, disque ou fichier
+  d'image. La restauration réutilise ainsi la mécanique du clonage, celle que cinq démarrages ont
+  validée, au lieu d'en être une seconde copie
+- `engine/backup` : un disque vers une image, la compression ne ralentissant pas la lecture
+
+Les essais se font avec les rôles actuels du code (port 1 source, baies cibles) et le T7 comme
+stockage : le choix libre des disques vient avec la phase 4.
 
 **Fini quand** : l'aller-retour disque → image → disque redonne une arborescence identique,
 dans les deux modes ; une image tronquée à la main est refusée par la vérification des
-empreintes **avant** toute écriture sur les cibles ; un dossier marqué incomplet n'apparaît pas
-dans la liste ; et un vrai disque restauré depuis une image démarre.
+empreintes **avant** toute écriture sur les cibles ; un dossier sans `clonegator.json`
+n'apparaît pas dans la liste ; une image restaurée à la main en suivant son `LISEZMOI.txt` donne
+une cible conforme ; et un vrai disque restauré depuis une image démarre.
 
-### Phase 4 — Interface · taille M
+### Phase 4 — Interface et modes · taille L
 
+- `devices` : les emplacements du §3.1 — SATA sur plusieurs contrôleurs, NVMe, USB ramenés à un
+  connecteur physique (un port USB 3 et son jumeau USB 2 ne font qu'un) — et les deux filets de
+  P2 : ouverture exclusive refusée par le noyau, images CloneGator présentes sur le disque
+- mode libre et mode station (§3.2, §3.3), réglage de station enregistré dans `/etc/clonegator/`
+- l'écran de confirmation annonce les partitions copiées intégralement, Windows mal arrêté en
+  tête (§6.2, §9.2)
 - `ui/model` d'abord, testable et imprimable en texte brut
 - `ui/screens` ensuite : les quatre écrans du §9
 - l'écran de rapport qui ne s'efface jamais tout seul (§9.4)
@@ -273,8 +289,15 @@ dans la liste ; et un vrai disque restauré depuis une image démarre.
 - comportement au retrait à chaud d'une cible en cours de copie (§13)
 
 **Fini quand** : le parcours complet — inventaire, confirmation, progression, rapport — tourne
-sur la station A, et le retrait volontaire d'une cible en cours de copie est signalé à l'écran
+sur la station A, dans les deux modes ; le réglage de station survit à un redémarrage et se
+quitte ; en mode libre, une image se restaure vers un disque USB et le disque système n'est
+jamais proposé ; et le retrait volontaire d'une cible en cours de copie est signalé à l'écran
 sans perturber les autres.
+
+**Transition jusqu'ici.** Tant que la phase 4 n'est pas faite, `devices.role` applique les
+règles de la révision 0.3 de l'analyse : port 1 source, autres ports SATA cibles, USB jamais
+cloné. C'est exactement le réglage de la station de développement, un cas particulier du mode
+station ; la phase 4 le remplace, elle ne l'enrichit pas.
 
 ### Phase 5 — Paquet et recette · taille S · **sur la station B**
 

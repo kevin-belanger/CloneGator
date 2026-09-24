@@ -4,10 +4,14 @@ Le reste du logiciel ne connaît que les objets `Disque` produits ici. Il ne lit
 jamais `lsblk` ni `/dev/disk/by-path` lui-même, et ne manipule jamais un
 `/dev/sdX` qu'il aurait deviné.
 
-**C'est ici que vit P2**, la règle porteuse de l'analyse : un disque dont le bus
-est USB n'obtient jamais le rôle source ni le rôle cible. Le système de la
-station et le stockage d'images sont sur USB, donc rien ne peut les écraser, et
-aucune vérification supplémentaire n'est nécessaire ailleurs.
+**C'est ici, et seulement ici, que se décide ce qu'un disque peut devenir**
+(§2 et §3 de l'analyse). Le moteur de copie ne regarde jamais le rôle d'un
+disque.
+
+Les rôles ci-dessous sont ceux d'avant l'analyse 0.4 : port 1 source, autres
+ports SATA cibles, USB jamais cloné. C'est le réglage de la station de
+développement ; la phase 4 les remplace par les emplacements, le mode libre, le
+mode station et les deux filets de P2.
 """
 
 from __future__ import annotations
@@ -28,8 +32,8 @@ ROLE_CIBLE = "cible"
 ROLE_STOCKAGE = "stockage"
 ROLE_IGNORE = "ignore"
 
-# Bus sur lesquels un clonage est permis. L'USB en est absent, et c'est tout
-# l'enjeu : ne rien ajouter ici sans relire P2.
+# Bus sur lesquels le réglage actuel permet un clonage. L'USB en est absent :
+# la phase 4 remplacera cette liste par les modes (§3 de l'analyse).
 BUS_CLONABLES = frozenset({"sata", "ata"})
 
 _BY_PATH = "/dev/disk/by-path"
@@ -79,10 +83,9 @@ class Disque:
 
     @property
     def role(self) -> str:
-        """Ce que ce disque a le droit de devenir.
-
-        Un disque USB est un support de stockage, jamais une source ni une
-        cible : c'est P2, et elle est appliquée ici et nulle part ailleurs.
+        """Ce que ce disque a le droit de devenir, selon le réglage de la station
+        de développement (voir l'en-tête du module) : un disque USB y est un
+        support de stockage, jamais une source ni une cible.
         """
         if self.bus == "usb":
             return ROLE_STOCKAGE

@@ -1,7 +1,9 @@
 # CloneGator — consignes de travail
 
-Station de duplication de disques. Un maître dans le port SATA 1, des cibles
-dans les suivants. Successeur de `clonesrv`, réécrit de zéro.
+Duplication et sauvegarde de disques. Mode libre par défaut : l'opérateur
+choisit ses disques à chaque opération. Mode station en raccourci : un réglage
+enregistré d'emplacements source et cibles, pour une machine à baies.
+Successeur de `clonesrv`, réécrit de zéro.
 
 ## Les deux documents font foi
 
@@ -16,18 +18,27 @@ vocabulaire de l'exception (« écart assumé », « contredit la spec »).
 
 ## Invariants
 
-**P1 — Le port SATA 1 n'est jamais écrit.** Le disque maître y est mis en
-lecture seule au niveau du noyau pendant toute opération. Si une copie échoue
-ce n'est pas grave ; détruire le maître l'est.
+**P1 — La source d'une opération n'est jamais écrite.** Le maître d'un
+clonage, le disque qu'on sauvegarde : lui et chacune de ses partitions passent
+en lecture seule noyau pendant toute l'opération. Si une copie échoue ce n'est
+pas grave ; détruire le maître l'est.
 
-**P2 — Aucun disque USB n'est jamais cloné**, ni comme source ni comme cible.
-Le système de la station et le stockage des images vivent sur USB : ils sont
-protégés par cette seule règle.
+**P2 — Deux filets, et seulement deux.** Un disque utilisé par le système
+(monté, swap, LVM, RAID, démarrage) n'est ni source ni cible : le noyau refuse
+de l'ouvrir en exclusivité, c'est lui qui le dit. Un disque qui contient des
+images CloneGator n'est jamais une cible. Tout le reste est le choix de
+l'opérateur, sur l'écran de confirmation.
 
-P2 est appliquée **à un seul endroit**, `Disque.role` dans
-[clonegator/devices.py](clonegator/devices.py). Ne pas la dupliquer ailleurs,
-ne pas ajouter de vérification par-dessus. Si un besoin semble exiger qu'un
-disque USB devienne une cible, c'est une discussion, pas un correctif.
+Les règles qui décident ce qu'un disque peut devenir — emplacement, mode,
+filets de P2 — vivent **à un seul endroit**,
+[clonegator/devices.py](clonegator/devices.py). Ne pas les dupliquer ailleurs,
+ne pas ajouter de vérification par-dessus. Le moteur (`engine/`) ne regarde
+jamais le rôle d'un disque.
+
+**Transition** : jusqu'à la phase 4, `Disque.role` applique encore les règles
+d'avant l'analyse 0.4 — port 1 source, autres ports SATA cibles, USB jamais
+cloné. C'est le réglage de la station de développement ; la phase 4 le
+remplace par les modes.
 
 Les autres principes (P3 à P6) sont au §2 de l'analyse.
 
@@ -37,7 +48,7 @@ Les autres principes (P3 à P6) sont au §2 de l'analyse.
   de `pip`, jamais d'environnement virtuel. Si un besoin semble en réclamer
   une, le signaler plutôt que de l'installer.
 - **Python orchestre, il ne copie pas.** Le travail réel est délégué aux outils
-  système : `partclone`, `sfdisk`, `sgdisk`, `zstd`, `blockdev`.
+  système : `partclone`, `sfdisk`, `zstd`, `blockdev`.
 - **Tout appel système passe par `clonegator/sysexec.py`.** Aucun autre module
   n'appelle `subprocess` ni ne lit `/dev`, `/sys`, `/proc` directement. C'est
   ce qui donne un délai d'attente sur chaque commande et le journal verbatim.
@@ -45,6 +56,8 @@ Les autres principes (P3 à P6) sont au §2 de l'analyse.
   pour un simple `print` : à chaque fermeture, udev croit le disque modifié et le
   re-sonde. L'ancien menu `clonesrv` a ainsi fait lire le port 1 en boucle
   pendant deux jours. Lire les tables avec `sfdisk --json` ou `lsblk`.
+- **Désigner un disque par son emplacement** (`/dev/disk/by-path`), jamais par
+  `/dev/sdX` : les noms changent quand on retire et remet les disques.
 - **Pas de numéros de partition supposés contigus.** Une source en 1, 2, 3, 5
   est un cas normal, pas une anomalie.
 - **Pas de garde-fou superflu.** Quand une règle structurelle couvre déjà un
@@ -73,8 +86,9 @@ python3 -m clonegator essai-diffusion --volume 8   # ÉCRASE les cibles, relit e
 
 Journaux d'opération : `/var/log/clonegator/<date>_<opération>/`.
 
-Prochaine étape : phase 3, les images — sauvegarde du port 1 vers un disque
-USB, restauration vers les cibles.
+Prochaine étape : phase 3, les images — sauvegarde d'un disque vers le disque
+USB, restauration vers un ou plusieurs disques. Format arrêté au §7.2 de
+l'analyse.
 
 ## Essais
 

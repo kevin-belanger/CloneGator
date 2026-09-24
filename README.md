@@ -12,14 +12,20 @@ l'opérateur ne manipule jamais de `/dev/sdX`.
 Les deux documents sont vivants : quand une décision les contredit, on les met à
 jour plutôt que de laisser le code s'en écarter en silence.
 
-## La règle porteuse
+## Deux modes, deux filets
 
-**Aucun disque USB n'est jamais cloné, ni comme source ni comme cible.** Le
-système de la station et le stockage des images vivent sur USB ; ils sont donc
-protégés par la règle même qu'on écrit, sans vérification supplémentaire.
+**Mode libre**, par défaut : on choisit ses disques à chaque opération —
+cloner, sauvegarder vers une image, restaurer une image. **Mode station** : un
+raccourci enregistré pour une machine à baies ; on change les disques et on
+lance, sans rien choisir.
 
-Elle est appliquée à un seul endroit — l'attribution du rôle dans
-[`clonegator/devices.py`](clonegator/devices.py). Ne pas la contourner ailleurs.
+Les disques sont désignés par leur emplacement (`SATA1`, `NVMe1`, `USB2`), pas
+par leur nom `/dev/sdX`, qui change au rebranchement.
+
+La source d'une opération n'est jamais écrite. Et deux filets seulement : un
+disque utilisé par le système n'est jamais ni source ni cible, un disque qui
+contient des images CloneGator n'est jamais une cible. Ces règles vivent à un
+seul endroit, [`clonegator/devices.py`](clonegator/devices.py).
 
 ## État
 
