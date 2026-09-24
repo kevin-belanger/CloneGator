@@ -143,6 +143,10 @@ def cmd_essai_diffusion(args) -> int:
     )
 
 
+def cmd_cloner(args) -> int:
+    return essais.cloner(ports=args.ports, delai_blocage=args.delai)
+
+
 def cmd_version(_args) -> int:
     print(VERSION)
     return 0
@@ -181,6 +185,17 @@ def construire_analyseur() -> argparse.ArgumentParser:
         "--delai", type=float, default=60, help="délai de blocage en secondes (défaut : 60)"
     )
     essai.set_defaults(fonction=cmd_essai_diffusion)
+
+    cloner = sous.add_parser(
+        "cloner", help="clone le port 1 vers les cibles (ÉCRASE LES CIBLES)"
+    )
+    cloner.add_argument(
+        "--ports", type=int, nargs="+", help="ports cibles (défaut : toutes les cibles)"
+    )
+    cloner.add_argument(
+        "--delai", type=float, default=60, help="délai de blocage en secondes (défaut : 60)"
+    )
+    cloner.set_defaults(fonction=cmd_cloner)
 
     sous.add_parser(
         "version", help="affiche la version"

@@ -56,16 +56,17 @@ _ETATS_NTFS = {
 class Choix:
     moteur: str
     programme: str | None = None
-    avertissement: str = ""  # pourquoi on n'a pas pris le chemin rapide
+    raison: str = ""  # pourquoi ce moteur, pour le journal
+    avertissement: bool = False  # à montrer à l'opérateur (§6.2 : système sale)
 
     def __str__(self) -> str:
         texte = self.programme or self.moteur
-        return f"{texte} ({self.avertissement})" if self.avertissement else texte
+        return f"{texte} ({self.raison})" if self.raison else texte
 
 
 def choisir(partition: Partition, etendue: bool = False) -> Choix:
     if etendue:
-        return Choix(AUCUN, avertissement="partition étendue, décrite par la table")
+        return Choix(AUCUN, raison="partition étendue, décrite par la table")
 
     fstype = (partition.fstype or "").lower()
     if fstype == "swap":
@@ -77,11 +78,13 @@ def choisir(partition: Partition, etendue: bool = False) -> Choix:
             motif = "aucun système de fichiers reconnu"
         else:
             motif = f"« {fstype} » non pris en charge par partclone"
-        return Choix(BRUT, avertissement=motif)
+        # Cas normal, pas une alerte : la partition réservée de Windows, par
+        # exemple, n'a jamais de système de fichiers.
+        return Choix(BRUT, raison=motif)
 
     salete = _salete(partition, fstype)
     if salete:
-        return Choix(BRUT, avertissement=f"{salete} : copie intégrale")
+        return Choix(BRUT, raison=f"{salete} : copie intégrale", avertissement=True)
 
     return Choix(PARTCLONE, programme)
 

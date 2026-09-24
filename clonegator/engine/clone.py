@@ -300,9 +300,9 @@ class Clonage:
     def _copier_partition(self, plan: Plan) -> None:
         numero = plan.entree.numero
         moteur = plan.choix.moteur
-        if plan.choix.avertissement and moteur != filesystems.AUCUN:
+        if plan.choix.avertissement:
             for cible in self.actives:
-                cible.avertissements.append(f"partition {numero} : {plan.choix.avertissement}")
+                cible.avertissements.append(f"partition {numero} : {plan.choix.raison}")
 
         if moteur == filesystems.AUCUN:
             return

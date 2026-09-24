@@ -7,6 +7,9 @@ relue depuis le disque et comparée à la source. **Les cibles sont écrasées.*
 Ce n'est pas un clonage : aucune table de partitions n'est interprétée, on
 mesure seulement que N disques reçoivent exactement ce qu'on a lu une fois, et
 à quel débit.
+
+`cloner` lance un vrai clonage du port 1 vers les cibles, avec un affichage
+texte, en attendant l'interface curses de la phase 4.
 """
 
 from __future__ import annotations
@@ -17,7 +20,8 @@ import threading
 import time
 
 from . import devices, sysexec
-from .engine import fanout
+from .engine import clone, fanout
+from .journal import Journal
 
 Gio = 1024 * fanout.Mio
 
@@ -180,3 +184,72 @@ def _taille(octets: float) -> str:
 
 def _debit(octets_par_seconde: float) -> str:
     return f"{octets_par_seconde / 1e6:.0f} Mo/s"
+
+
+def cloner(ports: list[int] | None, delai_blocage: float) -> int:
+    """Clone le port 1 vers les cibles, en attendant l'interface de la phase 4.
+
+    Source et cibles sont prises par leur rôle, jamais par leur chemin : P2
+    s'applique ici comme partout.
+    """
+    disques = devices.inventaire()
+    source = devices.source(disques)
+    if source is None:
+        print("Aucun disque dans le port 1.")
+        return 1
+    cibles = [d for d in devices.cibles(disques) if ports is None or d.port in ports]
+    if not cibles:
+        print("Aucune cible retenue.")
+        return 1
+
+    print(f"Source  port {source.port}  {source.description}  {_taille(source.taille)}"
+          f"  s/n {source.serie}")
+    for cible in cibles:
+        print(f"Cible   port {cible.port}  {cible.description}  {_taille(cible.taille)}"
+              f"  s/n {cible.serie}")
+    print()
+
+    with Journal("clonage") as journal:
+        clonage = clone.Clonage(source, cibles, journal, delai_blocage=delai_blocage)
+        fil = threading.Thread(target=clonage.executer, name="clonage")
+        fil.start()
+        derniere_etape = None
+        try:
+            while fil.is_alive():
+                fil.join(timeout=2.0)
+                if clonage.etape != derniere_etape:
+                    if derniere_etape is not None:
+                        print()
+                    print(f"— {clonage.etape}")
+                    derniere_etape = clonage.etape
+                diffusion = clonage.diffusion
+                if diffusion is not None:
+                    _afficher_progression_clonage(diffusion)
+        except KeyboardInterrupt:
+            print("\nInterruption demandée…")
+            clonage.arreter()
+            fil.join()
+
+        print()
+        print(f"Durée totale : {clonage.duree / 60:.1f} min")
+        print()
+        print(f"{'Cible':<8} {'Numéro de série':<18} Verdict")
+        for cible in clonage.cibles:
+            print(f"port {cible.disque.port:<3} {cible.disque.serie:<18} {cible.etat.upper()}"
+                  + (f" — {cible.motif}" if cible.motif else ""))
+            for avertissement in cible.avertissements:
+                print(f"{'':<27}  ⚠ {avertissement}")
+        print()
+        print(f"Journal : {journal.dossier}")
+
+    return 0 if all(c.etat == clone.REUSSIE for c in clonage.cibles) else 2
+
+
+def _afficher_progression_clonage(diffusion: fanout.Diffusion) -> None:
+    morceaux = [f"{_taille(diffusion.octets_lus)} lus"]
+    for cible in diffusion.cibles:
+        if cible.active:
+            morceaux.append(f"{cible.nom} {cible.debit / 1e6:4.0f} Mo/s")
+        else:
+            morceaux.append(f"{cible.nom} {cible.etat}")
+    print("\r  " + "  ".join(morceaux) + "   ", end="", flush=True)
