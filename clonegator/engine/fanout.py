@@ -156,6 +156,7 @@ class Diffusion:
         self.delai_blocage = delai_blocage
         self.limite = limite
         self.octets_lus = 0
+        self.fin_de_flux = False  # la source a été lue jusqu'au bout
         self.motif_source = ""
         self.empreinte_source: str | None = None
 
@@ -229,6 +230,7 @@ class Diffusion:
             if self.limite is not None:
                 taille = min(taille, self.limite - self.octets_lus)
                 if taille <= 0:
+                    self.fin_de_flux = True
                     return
 
             try:
@@ -239,7 +241,8 @@ class Diffusion:
                 return
 
             if not bloc:
-                return  # fin de flux
+                self.fin_de_flux = True
+                return
 
             self.octets_lus += len(bloc)
             if self._hachage is not None:

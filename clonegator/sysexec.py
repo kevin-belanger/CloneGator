@@ -54,6 +54,122 @@ class Resultat:
         return f"{self.commande} -> {etat}"
 
 
+class Processus:
+    """Un programme qui produit ou consomme un flux : `partclone`, surtout.
+
+    Pas de délai global ici : une copie dure le temps qu'elle dure, et c'est la
+    diffusion qui surveille le blocage. En revanche, `attendre` borne l'attente
+    de la fin du programme, une fois son flux terminé.
+
+    Sa sortie d'erreur va dans un fichier du journal d'opération : `partclone`
+    y écrit sa progression en continu, et un tube non lu finirait par le figer.
+    """
+
+    def __init__(
+        self,
+        argv: list[str],
+        *,
+        flux_entrant: bool = False,
+        flux_sortant: bool = False,
+        erreurs: str | None = None,
+    ):
+        self.argv = list(argv)
+        self.erreurs = erreurs
+        self._fichier_erreurs = open(erreurs, "wb") if erreurs else subprocess.DEVNULL
+        self._debut = time.monotonic()
+        _log.info("lancé : %s", self.commande)
+        try:
+            self._popen = subprocess.Popen(
+                self.argv,
+                stdin=subprocess.PIPE if flux_entrant else subprocess.DEVNULL,
+                stdout=subprocess.PIPE if flux_sortant else subprocess.DEVNULL,
+                stderr=self._fichier_erreurs,
+            )
+        except OSError:
+            self._fermer_journal()
+            raise
+
+    @property
+    def commande(self) -> str:
+        return " ".join(self.argv)
+
+    @property
+    def entree(self) -> int:
+        """Descripteur où écrire ce que le programme lit."""
+        return self._popen.stdin.fileno()
+
+    @property
+    def sortie(self) -> int:
+        """Descripteur où lire ce que le programme produit."""
+        return self._popen.stdout.fileno()
+
+    def fermer_entree(self) -> None:
+        """Signale la fin du flux au programme."""
+        if self._popen.stdin and not self._popen.stdin.closed:
+            try:
+                self._popen.stdin.close()
+            except BrokenPipeError:
+                pass  # le programme est déjà parti ; son code de retour le dira
+
+    def attendre(self, delai: float) -> Resultat:
+        """Attend la fin du programme ; au-delà du délai, il est tué."""
+        expire = False
+        try:
+            code = self._popen.wait(timeout=delai)
+        except subprocess.TimeoutExpired:
+            self.tuer()
+            expire = True
+            try:
+                code = self._popen.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                # Tué mais toujours là : coincé dans le noyau sur un disque qui
+                # ne répond plus. On l'abandonne plutôt que de figer la station.
+                _log.error("%s ne se termine pas, même tué : abandonné", self.commande)
+                code = -9
+        if self._popen.stdout:
+            self._popen.stdout.close()
+        self._fermer_journal()
+
+        resultat = Resultat(
+            argv=self.argv,
+            code=code,
+            sortie="",
+            erreur=self.fin_du_journal(),
+            duree=time.monotonic() - self._debut,
+            expire=expire,
+        )
+        if resultat.ok:
+            _log.info("%s", resultat)
+        else:
+            _log.warning("%s | %s", resultat, resultat.erreur[-300:])
+        return resultat
+
+    def tuer(self) -> None:
+        if self._popen.poll() is None:
+            _log.warning("tué : %s", self.commande)
+            self._popen.kill()
+
+    def fin_du_journal(self, octets: int = 2000) -> str:
+        """Les dernières lignes de sa sortie d'erreur, pour nommer un échec."""
+        if not self.erreurs:
+            return ""
+        try:
+            with open(self.erreurs, "rb") as fichier:
+                fichier.seek(0, os.SEEK_END)
+                fichier.seek(max(0, fichier.tell() - octets))
+                brut = fichier.read()
+        except OSError:
+            return ""
+        # partclone réécrit sa ligne de progression avec \r : ne garder que
+        # l'état final de chaque ligne.
+        lignes = [ligne.split("\r")[-1].strip() for ligne in _texte(brut).split("\n")]
+        return "\n".join(ligne for ligne in lignes if ligne)
+
+    def _fermer_journal(self) -> None:
+        if self._fichier_erreurs is not subprocess.DEVNULL:
+            self._fichier_erreurs.close()
+
+
 def disponible(programme: str) -> bool:
     """Le programme est-il installé ?"""
     return shutil.which(programme) is not None

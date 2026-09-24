@@ -192,10 +192,13 @@ def construire_analyseur() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = construire_analyseur().parse_args(argv)
 
-    logging.basicConfig(
-        level=logging.DEBUG if args.verbeux else logging.WARNING,
-        format="%(levelname)s %(name)s : %(message)s",
-    )
+    # Le niveau porte sur l'écran seulement : le journal d'une opération reçoit
+    # tout, quel que soit ce réglage.
+    console = logging.StreamHandler()
+    console.setLevel(logging.DEBUG if args.verbeux else logging.WARNING)
+    console.setFormatter(logging.Formatter("%(levelname)s %(name)s : %(message)s"))
+    logging.getLogger().addHandler(console)
+    logging.getLogger().setLevel(logging.DEBUG)
 
     return args.fonction(args)
 

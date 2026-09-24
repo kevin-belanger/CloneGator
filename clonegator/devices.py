@@ -44,7 +44,9 @@ _LIEN_ATA = re.compile(r"-ata-(\d+)(?:\.\d+)?$")
 _NOM_PORT_ATA = re.compile(r"ata(\d+)$")
 _NUMERO_FINAL = re.compile(r"(\d+)$")
 
-_COLONNES = "PATH,TYPE,SIZE,MODEL,SERIAL,TRAN,PTTYPE,LOG-SEC,FSTYPE,MOUNTPOINT,FSUSED"
+_COLONNES = (
+    "PATH,TYPE,SIZE,MODEL,SERIAL,TRAN,PTTYPE,LOG-SEC,FSTYPE,MOUNTPOINT,FSUSED,UUID,LABEL"
+)
 
 
 @dataclass
@@ -55,6 +57,8 @@ class Partition:
     fstype: str | None = None
     point_montage: str | None = None
     utilise: int | None = None
+    uuid: str | None = None  # celui du système de fichiers, pas de la partition
+    etiquette: str | None = None
 
     @property
     def montee(self) -> bool:
@@ -164,6 +168,25 @@ def inventaire() -> list[Disque]:
     return disques
 
 
+def decrire(chemin: str) -> Disque | None:
+    """Un seul disque, relu à l'instant — une cible dont on vient d'écrire la
+    table, par exemple.
+
+    Accepte aussi un disque en boucle du banc d'essai, que l'inventaire écarte :
+    il n'a pas de port, donc pas de rôle, mais le moteur de copie ne travaille
+    que sur des chemins et peut s'en servir.
+    """
+    brut = sysexec.executer_json(
+        ["lsblk", "--json", "--tree", "--bytes", "-o", _COLONNES, chemin]
+    )
+    if not brut or not brut.get("blockdevices"):
+        return None
+    noeud = brut["blockdevices"][0]
+    if noeud.get("type") not in ("disk", "loop"):
+        return None
+    return _disque_depuis(noeud, ports_occupes())
+
+
 def par_role(disques: list[Disque], role: str) -> list[Disque]:
     return [disque for disque in disques if disque.role == role]
 
@@ -255,6 +278,8 @@ def _partitions_depuis(noeud: dict, chemin_disque: str) -> list[Partition]:
                 fstype=enfant.get("fstype"),
                 point_montage=enfant.get("mountpoint"),
                 utilise=_entier_ou_none(enfant.get("fsused")),
+                uuid=enfant.get("uuid"),
+                etiquette=enfant.get("label"),
             )
         )
 
