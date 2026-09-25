@@ -399,6 +399,14 @@ station ; la phase 4 le remplace, elle ne l'enrichit pas.
 **Fini quand** : la station B, qui n'a jamais servi au développement, s'installe depuis le
 paquet seul, démarre sur l'interface, et clone un disque qui démarre.
 
+**Où on en est (2026-09-25).** `./outils/construire-paquet.sh` construit
+`dist/clonegator_<version>_all.deb` avec `dpkg-deb` seul ; la version porte la date et le
+commit, et c'est elle que le logiciel affiche. Sur la station A : installation par `apt`
+(dépendances résolues), commande `clonegator` utilisable de partout, unité du mode station
+pointant sur `/usr/bin/clonegator`, désinstallation qui rend la console à son invite de
+connexion. Restent le redémarrage réel en lancement automatique, depuis le paquet installé, et
+la recette sur la station B.
+
 ---
 
 ## 4. Chemin critique

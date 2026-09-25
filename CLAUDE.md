@@ -88,7 +88,10 @@ Journaux : `/var/log/clonegator/<date>_<opération>/` (avec `rapport.txt`) ;
 réglages : `/etc/clonegator/clonegator.json`. Un seul CloneGator à la fois
 (verrou dans `/run/clonegator`).
 
-Prochaine étape : phase 5, le paquet `.deb` et sa recette sur la station B.
+Phase 5 en cours : `./outils/construire-paquet.sh` construit le `.deb` dans
+`dist/` (dépôt commité exigé), installé sur la station A par
+`apt install ./dist/clonegator_*_all.deb`. Restent le redémarrage réel en
+lancement automatique et la recette sur la station B.
 
 ## Essais
 
