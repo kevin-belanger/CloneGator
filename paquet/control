@@ -4,7 +4,7 @@ Architecture: all
 Maintainer: Kevin Bélanger <belanger.kevin@gmail.com>
 Section: admin
 Priority: optional
-Depends: python3 (>= 3.10), partclone, util-linux, zstd, smartmontools, ntfs-3g, e2fsprogs, dosfstools, cifs-utils, coreutils, udev
+Depends: python3 (>= 3.10), partclone, util-linux, fdisk, zstd, smartmontools, ntfs-3g, e2fsprogs, dosfstools, cifs-utils, coreutils, udev
 Description: duplication et sauvegarde de disques
  Clone un disque vers un ou plusieurs disques, sauvegarde un disque vers une
  image sur un disque USB ou un partage réseau Windows, et restaure une image

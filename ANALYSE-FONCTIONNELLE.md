@@ -628,7 +628,8 @@ installé sur un disque USB.
   lancement automatique (§3.3), la connexion au partage réseau sans son mot de passe (§7.4)
 - journaux dans `/var/log/clonegator/`
 - unité systemd optionnelle pour lancer l'interface au démarrage sur la console
-- dépendances déclarées par le paquet : `python3`, `partclone`, `util-linux`, `zstd`,
+- dépendances déclarées par le paquet : `python3`, `partclone`, `util-linux`, `fdisk` (qui porte
+  `sfdisk` depuis Debian 13), `zstd`,
   `smartmontools`, `ntfs-3g`, `e2fsprogs`, `dosfstools`, `cifs-utils`. Aucune bibliothèque Python tierce
   (§16), donc rien à installer hors des dépôts Debian.
 
