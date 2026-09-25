@@ -193,6 +193,13 @@ class Diffusion:
     def cibles(self) -> list[Cible]:
         return [voie.cible for voie in self._voies]
 
+    def abandonner(self, nom: str, motif: str) -> None:
+        """Retire une destination en cours de route — un disque qui vient de
+        disparaître, par exemple. Les autres continuent."""
+        for voie in self._voies:
+            if voie.cible.nom == nom:
+                voie.conclure(ECHEC, motif)
+
     def arreter(self) -> None:
         """Interrompt la diffusion. Les destinations en cours sont déclarées
         interrompues : une copie partielle n'est jamais présentée comme bonne."""

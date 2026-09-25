@@ -52,6 +52,7 @@ def monter(partition: str, fstype: str, cible: str, *, lecture_seule: bool) -> s
     return sysexec.executer(
         ["mount", "-t", _PILOTES.get(fstype, fstype), "-o", options, partition, cible],
         delai=60,
+        echec_prevu=lecture_seule,  # une sonde qui échoue n'est pas une anomalie
     )
 
 

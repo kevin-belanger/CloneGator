@@ -188,7 +188,8 @@ class Application:
 
         def element(e: devices.Emplacement) -> Element:
             disque = presents.get(e.cle)
-            detail = f"{disque.libelle}  {disque.description}  {texte.taille(disque.taille)}" if disque else "(vide)"
+            detail = (f"{disque.nom_noyau:<8} {disque.description}  {texte.taille(disque.taille)}"
+                      if disque else "(vide)")
             return Element(e.nom, e.cle, detail=detail)
 
         etape = 0
@@ -281,9 +282,9 @@ class Application:
         lignes = []
         def rangee(nom_emplacement, role, disque, etat, style):
             if disque is None:
-                return Ligne([(f"  {nom_emplacement:<13} {role:<8} (vide)", GRISE)])
+                return Ligne([(f"  {nom_emplacement:<13} {role:<11} (vide)", GRISE)])
             return Ligne([
-                (f"  {disque.libelle:<13} {role:<8} {disque.description[:20]:<20} "
+                (f"  {disque.libelle:<13} {role:<11} {disque.description[:20]:<20} "
                  f"{texte.taille(disque.taille):>9}   ", NORMAL),
                 (etat, style)])
 
@@ -305,8 +306,8 @@ class Application:
 
         for candidat in storage.candidats():
             libre = f"{texte.taille(candidat.libre)} libres" if candidat.libre is not None else "à monter"
-            lignes.append(Ligne([(f"  {candidat.disque.libelle:<13} {'SAUVEGARDES':<8} "
-                                  f"{candidat.disque.description[:20]:<20}   {libre}", AIDE)]))
+            lignes.append(Ligne([(f"  {candidat.disque.libelle:<13} {'SAUVEGARDES':<11} "
+                                  f"{candidat.disque.description[:20]:<20} {'':>9}   {libre}", AIDE)]))
 
         liste = Liste("", [
             Element("Cloner la source vers les cibles", "cloner"),
@@ -316,7 +317,8 @@ class Application:
         ])
         if precedente is not None:
             liste.curseur = precedente.curseur
-        page = Page(f"CloneGator {VERSION} — mode station", lignes, AIDE_LISTE)
+        page = Page(f"CloneGator {VERSION} — mode station", lignes,
+                    "↑↓ ou numéro : choisir    Entrée : valider")
         return page, liste
 
     def _cibles_station_pour(self, requis: int, secteur: int, cibles, source=None) -> list[devices.Disque]:

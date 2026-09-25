@@ -32,7 +32,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 
-from .. import devices, filesystems, layout, sysexec, verify
+from .. import cache, devices, filesystems, layout, sysexec, verify
 from ..devices import Disque
 from ..journal import Journal
 from . import fanout
@@ -114,7 +114,9 @@ class Clonage:
         self.duree = 0.0
 
         self._arret = threading.Event()
+        self._fini = threading.Event()
         self._processus: list[sysexec.Processus] = []
+        self._ecrivains: dict[str, sysexec.Processus] = {}  # partclone en cours, par cible
 
     def arreter(self) -> None:
         self._arret.set()
@@ -177,6 +179,41 @@ class Clonage:
         if not self.actives:
             return
 
+        # Chaque cible reçoit son propre plafond de données en attente : une
+        # cible qui meurt en route ne peut plus freiner les autres (cache.py).
+        # Et on surveille qu'elle est toujours là (§13).
+        surveillance = threading.Thread(target=self._surveiller, name="surveillance", daemon=True)
+        self._fini = threading.Event()
+        with cache.plafonner([cible.disque.chemin for cible in self.actives]):
+            surveillance.start()
+            try:
+                self._copier()
+            finally:
+                self._fini.set()
+                surveillance.join()
+
+    def _surveiller(self) -> None:
+        """Une cible retirée à chaud ou mise hors ligne est déclarée en échec
+        tout de suite, sans attendre la fin de la partition (§13, §9.6).
+
+        Attendre coûterait cher : un disque disparu n'écrit plus rien, et le
+        noyau garde en mémoire, sans limite, tout ce qu'on continue de lui
+        envoyer. Arrêter son partclone libère cette mémoire.
+        """
+        while not self._fini.wait(2.0):
+            for cible in self.actives:
+                if devices.present(cible.disque):
+                    continue
+                motif = "disque retiré ou hors ligne pendant la copie"
+                cible.conclure(ECHEC, motif)
+                diffusion = self.diffusion
+                if diffusion is not None:
+                    diffusion.abandonner(cible.nom, motif)
+                ecrivain = self._ecrivains.get(cible.nom)
+                if ecrivain is not None:
+                    ecrivain.tuer()
+
+    def _copier(self) -> None:
         if self.source.brut:
             self.etape = "copie intégrale du disque"
             self._diffuser(self.source.ouvrir_disque_brut(self.journal),
@@ -322,6 +359,7 @@ class Clonage:
                 cible.conclure(ECHEC, f"partition {numero} : {programme} impossible à lancer : {erreur}")
 
         cibles = [cible for cible in self.actives if cible.nom in ecrivains]
+        self._ecrivains = ecrivains
         diffusion = fanout.Diffusion(
             flux.fd,
             [fanout.Destination(cible.nom, ecrivains[cible.nom].entree) for cible in cibles],
@@ -339,6 +377,7 @@ class Clonage:
                 ecrivain.fermer_entree()
 
         fin_lecteur = self._attendre(lecteur)
+        self._ecrivains = {}
 
         for cible, suivi in zip(cibles, diffusion.cibles):
             ecrivain = ecrivains[cible.nom]

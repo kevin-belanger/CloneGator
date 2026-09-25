@@ -204,6 +204,7 @@ def executer(
     delai: float = DELAI_DEFAUT,
     entree: str | None = None,
     dossier: str | None = None,
+    echec_prevu: bool = False,
 ) -> Resultat:
     """Lance une commande et rapporte ce qu'elle a fait.
 
@@ -256,6 +257,10 @@ def executer(
 
     if resultat.ok:
         _log.debug("%s", resultat)
+    elif echec_prevu:
+        # Un échec qui fait partie du fonctionnement normal — une sonde qui ne
+        # sait pas monter une partition, par exemple : au journal, sans alerte.
+        _log.info("%s | %s", resultat, resultat.erreur.strip()[:200])
     else:
         _log.warning("%s | %s", resultat, resultat.erreur.strip()[:200])
 
@@ -306,6 +311,18 @@ def lire(chemin: str) -> str | None:
             return fichier.read().strip()
     except OSError:
         return None
+
+
+def ecrire(chemin: str, valeur: str) -> bool:
+    """Écrit un réglage du noyau (un attribut de /sys) ; False s'il le refuse."""
+    try:
+        with open(chemin, "w", encoding="utf-8") as fichier:
+            fichier.write(valeur)
+    except OSError as erreur:
+        _log.warning("%s ← %s refusé : %s", chemin, valeur, erreur)
+        return False
+    _log.debug("%s ← %s", chemin, valeur)
+    return True
 
 
 def tenu_par_le_systeme(chemin: str) -> bool:

@@ -290,6 +290,16 @@ def montages(chemin: str) -> list[tuple[str, str]]:
     return trouves
 
 
+def present(disque: Disque) -> bool:
+    """Le disque est-il toujours là, et en ligne ? Faux dès qu'on l'a retiré à
+    chaud, ou que le noyau l'a mis hors ligne après des erreurs."""
+    nom = disque.nom_noyau
+    if sysexec.lire(f"/sys/block/{nom}/dev") is None:
+        return False
+    etat = sysexec.lire(f"/sys/block/{nom}/device/state")
+    return etat in (None, "running")
+
+
 # ------------------------------------------------ ce qu'un disque peut devenir ---
 
 def utilise_par_le_systeme(disque: Disque) -> bool:
