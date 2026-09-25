@@ -74,6 +74,7 @@ class Processus:
         flux_sortant: bool = False,
         entree_fd: int | None = None,
         erreurs: str | None = None,
+        dossier: str | None = None,
     ):
         """
         flux_entrant  on écrira dans son entrée (`entree`)
@@ -97,6 +98,7 @@ class Processus:
             self._popen = subprocess.Popen(
                 self.argv,
                 stdin=entree,
+                cwd=dossier,
                 stdout=subprocess.PIPE if flux_sortant else subprocess.DEVNULL,
                 stderr=self._fichier_erreurs,
             )

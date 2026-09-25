@@ -79,7 +79,7 @@ class SourceDisque:
     def taille_requise(self) -> int:
         return self.disque.taille if self.brut else self.table.taille_requise
 
-    def preparer(self) -> None:
+    def preparer(self, suivre=None) -> None:
         refus = devices.refus_comme_source(self.disque)
         if refus:
             raise ErreurSource(f"{self.disque.libelle} : {refus}")
@@ -180,10 +180,10 @@ class SourceImage:
     def taille_requise(self) -> int:
         return self.image.taille_requise
 
-    def preparer(self) -> None:
+    def preparer(self, suivre=None) -> None:
         if self.verifier:
             _log.info("vérification des empreintes de %s", self.image.nom)
-            motif = image.verifier_empreintes(self.image)
+            motif = image.verifier_empreintes(self.image, suivre)
             if motif:
                 raise ErreurSource(motif)
         if self.brut:

@@ -147,18 +147,28 @@ def lister(racine_stockage: str) -> list[Image]:
     return images
 
 
-def verifier_empreintes(image: Image) -> str:
+def verifier_empreintes(image: Image, suivre=None) -> str:
     """Motif du refus si un fichier de l'image ne correspond pas à son empreinte,
-    chaîne vide sinon. C'est `sha256sum -c`, exactement ce qu'un humain ferait."""
-    resultat = sysexec.executer(
+    chaîne vide sinon. C'est `sha256sum -c`, exactement ce qu'un humain ferait.
+
+    `suivre(processus)` inscrit le programme auprès de l'opération : la
+    vérification relit des Go, parfois par le réseau, et une interruption doit
+    pouvoir l'arrêter sans attendre la fin.
+    """
+    processus = sysexec.Processus(
         ["sha256sum", "--check", "--quiet", "--strict", EMPREINTES],
-        dossier=image.dossier,
-        delai=4 * 3600,
+        flux_sortant=True, dossier=image.dossier,
     )
+    if suivre is not None:
+        suivre(processus)
+    morceaux = []
+    while morceau := os.read(processus.sortie, 65536):  # quelques lignes au plus
+        morceaux.append(morceau)
+    resultat = processus.attendre(60)
     if resultat.ok:
         return ""
-    defauts = [ligne for ligne in resultat.sortie.splitlines() if ligne.strip()]
-    return "image altérée — " + ("; ".join(defauts[:3]) or resultat.erreur.strip())
+    defauts = [l for l in b"".join(morceaux).decode(errors="replace").splitlines() if l.strip()]
+    return "image altérée — " + ("; ".join(defauts[:3]) or resultat.erreur.strip() or "vérification impossible")
 
 
 def empreinte_fichier(chemin: str) -> str:

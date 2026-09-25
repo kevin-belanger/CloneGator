@@ -216,9 +216,11 @@ class Ecran:
     def suivre(self, construire, en_cours, interrompre) -> None:
         """L'écran de progression (§9.6), redessiné deux fois par seconde tant
         que l'opération tourne. Échap propose de l'interrompre."""
+        demande = False
         while en_cours():
             page, lignes = construire()
-            self.dessiner(page, lignes)
+            self.dessiner(page, lignes,
+                          message="Interruption demandée… arrêt en cours." if demande else "")
             touche = self.touche(0.5)
             if touche == "echap":
                 reponse = self.confirmer(
@@ -230,5 +232,6 @@ class Ecran:
                 )
                 if reponse == "interrompre":
                     interrompre()
+                    demande = True
         page, lignes = construire()
         self.dessiner(page, lignes)

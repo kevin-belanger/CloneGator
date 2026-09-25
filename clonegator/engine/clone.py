@@ -169,8 +169,9 @@ class Clonage:
     def _derouler(self) -> None:
         self.etape = self.source.etape_preparation
         try:
-            self.source.preparer()
+            self.source.preparer(self._suivre)
         except ErreurSource as erreur:
+            self._interrompu()  # une vérification coupée par l'opérateur n'est pas une image altérée
             for cible in self.cibles:
                 cible.conclure(ECHEC, f"source : {erreur}")
             return
