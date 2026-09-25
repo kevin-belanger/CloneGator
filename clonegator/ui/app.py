@@ -331,7 +331,7 @@ class Application:
         ])
         if precedente is not None:
             liste.curseur = precedente.curseur
-        page = Page(f"CloneGator {VERSION} — mode station", lignes,
+        page = Page("Mode station", lignes,
                     "↑↓ ou numéro : choisir    Entrée : valider")
         return page, liste
 
@@ -594,8 +594,8 @@ class Application:
     # ---------------------------------------------------------------- outils ---
 
     def _page(self, titre: str, entete=None, aide: str = "") -> Page:
-        mode = " — mode station" if self.reglages.mode == config.MODE_STATION else ""
-        return Page(f"CloneGator {VERSION}{mode} — {titre}", entete or [], aide)
+        mode = "Mode station — " if self.reglages.mode == config.MODE_STATION else ""
+        return Page(f"{mode}{titre}", entete or [], aide)
 
     def _message(self, titre: str, lignes: list[Ligne]) -> None:
         self.ecran.afficher(self._page(titre, aide="Entrée : revenir"), lignes)
@@ -721,7 +721,7 @@ class _Suivi:
         elif diffusion:
             suivi = diffusion.cibles[0]
             lignes.append(Ligne.de(f"  {suivi.nom}   {texte.debit(suivi.debit)}"))
-        return (Page(f"CloneGator {VERSION} — {titre} en cours", [], "Échap : interrompre"), lignes)
+        return (Page(f"{titre} en cours", [], "Échap : interrompre"), lignes)
 
 
 def _ligne_disque(prefixe: str, disque: devices.Disque) -> Ligne:

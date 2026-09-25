@@ -14,6 +14,7 @@ from __future__ import annotations
 import curses
 import time
 
+from .. import VERSION
 from .model import (
     AIDE, AVERTISSEMENT, ECHEC, FORT, GRISE, NORMAL, OK, RETOUR, TITRE, VALIDER,
     Element, Formulaire, Ligne, Liste, Page,
@@ -88,9 +89,12 @@ class Ecran:
                  message: str = "", style_message: str = AVERTISSEMENT) -> None:
         self.fenetre.erase()
         hauteur, largeur = self.fenetre.getmaxyx()
-        self._ecrire(0, Ligne.de(f" {page.titre}".ljust(largeur), TITRE), largeur)
+        # La bande du haut ne porte que le nom du logiciel ; l'intitulé de la
+        # vue a sa propre ligne, juste en dessous.
+        self._ecrire(0, Ligne.de(f" CloneGator {VERSION}".ljust(largeur), TITRE), largeur)
+        self._ecrire(2, Ligne.de(f" {page.titre}", FORT), largeur)
 
-        y = 2
+        y = 4
         for ligne in page.entete:
             if y >= hauteur - 3:
                 break
