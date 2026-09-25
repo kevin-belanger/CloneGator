@@ -161,7 +161,7 @@ class Clonage:
         return self.cibles
 
     def _derouler(self) -> None:
-        self.etape = "préparation de la source"
+        self.etape = self.source.etape_preparation
         try:
             self.source.preparer()
         except ErreurSource as erreur:

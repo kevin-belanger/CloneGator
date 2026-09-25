@@ -68,6 +68,9 @@ class SourceDisque:
     def description(self) -> str:
         return f"{self.disque.libelle}, {self.disque.description}, s/n {self.disque.serie}"
 
+    # Ce que l'écran de progression affiche pendant `preparer()`.
+    etape_preparation = "protection de la source en lecture seule"
+
     @property
     def secteur(self) -> int:
         return self.table.secteur if self.table else self.disque.secteur_logique
@@ -139,6 +142,11 @@ class SourceDisque:
     def secours_ntfs(self, plan: Plan) -> tuple[int, bytes] | None:
         return filesystems.secours_ntfs(self._partitions[plan.entree.numero].chemin)
 
+    def volume(self, plan: Plan) -> int:
+        """Octets que la copie de cette partition lira : sert à estimer la
+        progression d'une restauration future."""
+        return filesystems.volume_a_copier(self._partitions[plan.entree.numero], plan.choix)
+
 
 class SourceImage:
     """Une image du §7.2. Ses empreintes sont vérifiées avant toute écriture."""
@@ -154,8 +162,15 @@ class SourceImage:
     @property
     def description(self) -> str:
         origine = self.image.origine
-        return (f"image « {self.image.etiquette} » ({self.image.nom}), d'un "
-                f"{origine.get('modele', '?')} s/n {origine.get('serie', '?')}")
+        return (f"sauvegarde « {self.image.etiquette} » du {self.image.meta.get('date', '?')}, "
+                f"d'un {origine.get('modele', '?')} s/n {origine.get('serie', '?')}")
+
+    @property
+    def etape_preparation(self) -> str:
+        if not self.verifier:
+            return "lecture de la sauvegarde"
+        return (f"vérification de la sauvegarde (relecture de "
+                f"{self.image.taille_sur_disque / 1e9:.1f} Go)".replace(".", ","))
 
     @property
     def secteur(self) -> int:

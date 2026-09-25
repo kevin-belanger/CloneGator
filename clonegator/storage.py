@@ -60,6 +60,16 @@ class Stockage:
         return self.racine is not None
 
 
+def chemin_affiche(stockage: Stockage, chemin: str) -> str:
+    """Un chemin tel que l'opérateur le retrouverait : l'adresse du partage
+    Windows, ou le disque suivi du chemin depuis sa racine — jamais le point de
+    montage interne de CloneGator."""
+    relatif = os.path.relpath(chemin, stockage.racine) if stockage.racine else chemin
+    if stockage.reseau:
+        return stockage.connexion.unc + "\\" + relatif.replace("/", "\\")
+    return f"{stockage.nom} : /{relatif}"
+
+
 def candidats() -> list[Stockage]:
     """Les disques USB qui peuvent accueillir des sauvegardes, montés ou non."""
     resultats = []

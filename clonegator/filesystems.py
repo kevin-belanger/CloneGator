@@ -134,3 +134,45 @@ def secours_ntfs(chemin: str) -> tuple[int, bytes] | None:
         _log.warning("%s : secteur d'amorçage de secours introuvable", chemin)
         return None
     return position, secours
+
+
+def volume_a_copier(partition: Partition, choix: Choix) -> int:
+    """Octets que la copie de cette partition lira, pour l'estimation de durée
+    de l'écran de confirmation (§9.5) : les blocs utilisés pour partclone,
+    toute la partition pour une copie brute, rien pour un swap."""
+    if choix.moteur in (SWAP, AUCUN):
+        return 0
+    if choix.moteur == BRUT:
+        return partition.taille
+    utilise = espace_utilise(partition)
+    return utilise if utilise is not None else partition.taille
+
+
+def espace_utilise(partition: Partition) -> int | None:
+    """Espace occupé d'un système de fichiers, lu sans rien y écrire ; None si
+    on ne sait pas le lire."""
+    fstype = (partition.fstype or "").lower()
+    if fstype == "ntfs":
+        sortie = sysexec.executer(["ntfsinfo", "-m", partition.chemin]).sortie
+        valeurs = _valeurs(sortie, ("Cluster Size", "Volume Size in Clusters", "Free Clusters"))
+        if len(valeurs) == 3:
+            taille_cluster, total, libres = valeurs
+            return (total - libres) * taille_cluster
+    elif fstype.startswith("ext"):
+        sortie = sysexec.executer(["dumpe2fs", "-h", partition.chemin]).sortie
+        valeurs = _valeurs(sortie, ("Block size", "Block count", "Free blocks"))
+        if len(valeurs) == 3:
+            taille_bloc, total, libres = valeurs
+            return (total - libres) * taille_bloc
+    return None
+
+
+def _valeurs(sortie: str, cles: tuple[str, ...]) -> list[int]:
+    """Les nombres qui suivent chaque clé « Clé: 1234 », dans l'ordre des clés."""
+    trouvees = {}
+    for ligne in sortie.splitlines():
+        cle, _, reste = ligne.strip().partition(":")
+        mots = reste.split()
+        if cle.strip() in cles and mots and mots[0].isdigit():
+            trouvees[cle.strip()] = int(mots[0])
+    return [trouvees[cle] for cle in cles if cle in trouvees]

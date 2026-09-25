@@ -194,6 +194,7 @@ class Sauvegarde:
             decrite.update(uuid=uuid, etiquette=etiquette)
             return decrite
 
+        decrite["volume"] = self.source.volume(plan)
         fichier = image.fichier_partition(numero, moteur, plan.fstype)
         if moteur == filesystems.BRUT:
             flux = self.source.flux_brut(plan, self.journal)

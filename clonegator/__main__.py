@@ -1,52 +1,20 @@
-"""Point d'entrée en ligne de commande.
+"""Point d'entrée : `clonegator` ouvre l'interface (§9 de l'analyse).
 
-Les sous-commandes servent au développement et aux essais, en attendant
-l'interface curses : `inventaire` et `disques` montrent ce que le logiciel
-comprend du matériel sans rien écrire ; les autres lancent les vraies
-opérations, sur des disques désignés par leur emplacement.
+Les sous-commandes servent au développement et aux essais : `inventaire` et
+`disques` montrent ce que le logiciel comprend du matériel sans rien écrire ;
+les autres lancent les vraies opérations, sur des disques désignés par leur
+emplacement.
 """
 
 from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 
-from . import VERSION, devices, essais
-
-
-def taille_lisible(octets: int | None) -> str:
-    """Taille en unités décimales, comme les fabricants et `lsblk --bytes`."""
-    if octets is None:
-        return "?"
-    if octets < 1000:
-        return f"{octets} o"
-
-    valeur = float(octets)
-    for unite in ("ko", "Mo", "Go", "To", "Po"):
-        valeur /= 1000.0
-        if valeur < 1000.0:
-            return f"{valeur:.1f} {unite}".replace(".", ",")
-    return f"{valeur:.1f} Eo".replace(".", ",")
-
-
-def _resume_contenu(disque: devices.Disque) -> str:
-    if not disque.table and not disque.partitions:
-        return "aucune table de partitions"
-
-    morceaux = [(disque.table or "table inconnue").upper()]
-    nombre = len(disque.partitions)
-    morceaux.append(f"{nombre} part." if nombre else "0 part.")
-
-    numeros = [partition.numero for partition in disque.partitions]
-    if numeros and numeros != list(range(1, nombre + 1)):
-        # Cas que `clonesrv` ne savait pas traiter : on le rend visible.
-        morceaux.append("numéros " + ", ".join(str(n) for n in numeros))
-
-    if disque.utilise is not None:
-        morceaux.append(f"{taille_lisible(disque.utilise)} utilisés")
-
-    return ", ".join(morceaux)
+from . import VERSION, devices, essais, journal, verrou
+from .texte import contenu, taille as taille_lisible
 
 
 def cmd_inventaire(_args) -> int:
@@ -69,7 +37,7 @@ def cmd_inventaire(_args) -> int:
             continue
         refus = devices.refus_comme_cible(disque)
         print(f"  {disque.libelle:<14} {disque.description:<22} {taille_lisible(disque.taille):>10}"
-              f"  {_resume_contenu(disque):<34} {refus or 'disponible'}")
+              f"  {contenu(disque):<40} {refus or 'disponible'}")
     return 0
 
 
@@ -113,6 +81,11 @@ def cmd_restaurer(args) -> int:
     return essais.restaurer(args.sauvegarde, args.cibles, args.sans_verification, args.delai)
 
 
+def cmd_interface(_args) -> int:
+    from .ui import app
+    return app.demarrer()
+
+
 def cmd_version(_args) -> int:
     print(VERSION)
     return 0
@@ -129,7 +102,11 @@ def construire_analyseur() -> argparse.ArgumentParser:
         help="journalise chaque commande système lancée",
     )
 
-    sous = analyseur.add_subparsers(dest="commande", required=True)
+    sous = analyseur.add_subparsers(dest="commande")
+
+    sous.add_parser(
+        "interface", help="l'interface, ouverte aussi quand aucune commande n'est donnée"
+    ).set_defaults(fonction=cmd_interface)
 
     sous.add_parser(
         "inventaire", help="les emplacements et ce que chaque disque peut devenir"
@@ -192,18 +169,40 @@ def construire_analyseur() -> argparse.ArgumentParser:
     return analyseur
 
 
+# Les commandes qui écrivent sur des disques : une seule à la fois sur la machine.
+_ECRIVENT = {cmd_essai_diffusion, cmd_cloner, cmd_sauvegarder, cmd_restaurer}
+
+
 def main(argv: list[str] | None = None) -> int:
     args = construire_analyseur().parse_args(argv)
+    fonction = getattr(args, "fonction", cmd_interface)
+    format_ = logging.Formatter("%(asctime)s %(levelname)s %(name)s : %(message)s")
 
-    # Le niveau porte sur l'écran seulement : le journal d'une opération reçoit
-    # tout, quel que soit ce réglage.
-    console = logging.StreamHandler()
-    console.setLevel(logging.DEBUG if args.verbeux else logging.WARNING)
-    console.setFormatter(logging.Formatter("%(levelname)s %(name)s : %(message)s"))
-    logging.getLogger().addHandler(console)
+    if fonction is cmd_interface:
+        # Rien sur l'écran de curses : les avertissements vont dans un fichier,
+        # le détail d'une opération dans son propre journal.
+        os.makedirs(journal.RACINE, exist_ok=True)
+        fichier = logging.FileHandler(os.path.join(journal.RACINE, "interface.log"), encoding="utf-8")
+        fichier.setLevel(logging.WARNING)
+        fichier.setFormatter(format_)
+        logging.getLogger().addHandler(fichier)
+    else:
+        # Le niveau porte sur l'écran seulement : le journal d'une opération
+        # reçoit tout, quel que soit ce réglage.
+        console = logging.StreamHandler()
+        console.setLevel(logging.DEBUG if args.verbeux else logging.WARNING)
+        console.setFormatter(logging.Formatter("%(levelname)s %(name)s : %(message)s"))
+        logging.getLogger().addHandler(console)
     logging.getLogger().setLevel(logging.DEBUG)
 
-    return args.fonction(args)
+    if fonction in _ECRIVENT:
+        tenu = verrou.prendre()
+        if tenu is None:
+            print("CloneGator est déjà ouvert sur un autre écran de cette machine.")
+            return 1
+        with tenu:
+            return fonction(args)
+    return fonction(args)
 
 
 if __name__ == "__main__":
