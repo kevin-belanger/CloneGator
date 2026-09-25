@@ -29,16 +29,12 @@ seul endroit, [`clonegator/devices.py`](clonegator/devices.py).
 
 ## État
 
-Phase 3 terminée : cloner, sauvegarder vers une image et restaurer fonctionnent,
-et les disques obtenus démarrent. L'interface curses et le choix libre des
-disques viennent en phase 4 ; en attendant, des sous-commandes :
+Phase 4 terminée : l'interface est là. Un Windows cloné ou restauré démarre, les
+sauvegardes vont sur un disque USB ou un partage réseau Windows, et le mode
+station se retrouve au démarrage si on le souhaite.
 
 ```bash
-python3 -m clonegator inventaire
-python3 -m clonegator cloner
-python3 -m clonegator sauvegarder Win11-labo
-python3 -m clonegator images
-python3 -m clonegator restaurer 2026-09-24_2029_Win11-labo
+python3 -m clonegator
 ```
 
 ## Banc d'essai

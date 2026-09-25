@@ -372,8 +372,8 @@ apparaît toujours, le choix le plus probable présélectionné :
   passe, un secret enregistré y serait lisible par quiconque s'y assoit.
 
 Sur l'un comme sur l'autre, les sauvegardes vivent dans `CloneGator/`, à la racine. Un partage
-réseau plafonne vers 110 Mo/s sur un réseau gigabit : du même ordre que la lecture d'un disque
-maître courant, plus lent qu'un disque USB rapide.
+réseau est souvent plus lent qu'un disque USB rapide : le partage d'essai écrit entre 36 et
+69 Mo/s et lit à 56 Mo/s, le serveur fixant le rythme plus que le réseau gigabit.
 
 ### 7.5 Espace disponible et ménage
 
@@ -587,8 +587,8 @@ disque mourant réussit aujourd'hui sans que personne ne le sache.
 - **Interruption clavier ou coupure en cours d'écriture** : toutes les écritures en cours sont
   arrêtées proprement, les cibles concernées sont marquées comme **invalides** à l'écran et au
   journal. Le logiciel ne prétend jamais qu'une copie interrompue est utilisable.
-- **Retrait d'un disque cible en cours d'opération** : traité comme un échec de cette cible, les
-  autres continuent.
+- **Retrait d'un disque cible en cours d'opération** : détecté en quelques secondes, traité comme
+  un échec de cette cible ; les autres continuent à leur vitesse.
 - **Retrait du disque source** : arrêt de l'opération, toutes les cibles marquées invalides.
 - **Retrait du disque USB de stockage pendant une sauvegarde** : arrêt ; le dossier reste sans
   `clonegator.json`, donc hors de la liste des images restaurables.

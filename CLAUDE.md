@@ -71,27 +71,28 @@ fonctions, commentaires, messages de commit. S'y tenir.
 
 ## Où on en est
 
-Phases 1 à 3 terminées. Un Windows cloné, ou restauré depuis une image, démarre
-sur de vraies machines ; résultats et enseignements au plan. `cloner`,
-`restaurer` et `essai-diffusion` écrivent sur les cibles, jamais sur la source.
+Phases 1 à 4 terminées. `python3 -m clonegator` ouvre l'interface : mode libre
+(sauvegarder, restaurer, cloner), mode station, journaux, partage réseau.
+Restent trois essais qui demandent du matériel (plan, phase 4). Les
+sous-commandes servent au développement.
 
 ```bash
-python3 -m clonegator inventaire
+python3 -m clonegator                              # l'interface
+python3 -m clonegator inventaire                   # emplacements et disponibilité
 python3 -m clonegator disques
-python3 -m clonegator -v disques     # journalise chaque commande système
-python3 -m clonegator images                       # disques d'images et leur contenu
-python3 -m clonegator sauvegarder Win11-labo       # port 1 → image sur le disque USB
-python3 -m clonegator restaurer <dossier-image>    # ÉCRASE les cibles
-python3 -m clonegator cloner                       # ÉCRASE les cibles
-python3 -m clonegator essai-diffusion --volume 8   # ÉCRASE les cibles, relit et compare
-python3 -m unittest tests.test_layout tests.test_fanout tests.test_clone_banc tests.test_images_banc
+python3 -m clonegator images                       # sauvegardes sur les disques USB
+python3 -m clonegator cloner --source SATA1 --cibles SATA2 SATA3        # ÉCRASE
+python3 -m clonegator sauvegarder Win11-labo --source SATA1
+python3 -m clonegator restaurer <dossier> --cibles SATA2                # ÉCRASE
+python3 -m unittest tests.test_emplacements tests.test_layout tests.test_fanout \
+    tests.test_sante tests.test_interface tests.test_clone_banc tests.test_images_banc
 ```
 
-Journaux d'opération : `/var/log/clonegator/<date>_<opération>/`. Images :
-`/CloneGator/` sur le T7.
+Journaux : `/var/log/clonegator/<date>_<opération>/` (avec `rapport.txt`) ;
+réglages : `/etc/clonegator/clonegator.json`. Un seul CloneGator à la fois
+(verrou dans `/run/clonegator`).
 
-Prochaine étape : phase 4, l'interface et les modes — emplacements, mode libre
-et mode station, filets de P2, écrans curses.
+Prochaine étape : phase 5, le paquet `.deb` et sa recette sur la station B.
 
 ## Essais
 
@@ -112,6 +113,10 @@ essais du moteur, qui reçoit des chemins. En ajouter quand on découvre un cas.
 
 `source-gpt.sha256` est le manifeste de référence : après un clonage, monter
 la cible et relancer `sha256sum -c` dessus.
+
+**Voir l'interface sans écran** : la lancer dans une session `tmux` détachée,
+envoyer des touches (`tmux send-keys`), relever l'écran (`tmux capture-pane
+-p`). La console physique se lit dans `/dev/vcs1` (sans les accents).
 
 ## Environnement
 

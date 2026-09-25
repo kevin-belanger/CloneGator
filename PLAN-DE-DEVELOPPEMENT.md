@@ -1,6 +1,6 @@
 # CloneGator — Plan de développement
 
-Compagnon de [ANALYSE-FONCTIONNELLE.md](ANALYSE-FONCTIONNELLE.md), révision 0.8.
+Compagnon de [ANALYSE-FONCTIONNELLE.md](ANALYSE-FONCTIONNELLE.md), révision 0.9.
 Les renvois `§n` pointent vers l'analyse.
 
 | Rév. | Date | Auteur | Changement |
@@ -13,6 +13,7 @@ Les renvois `§n` pointent vers l'analyse.
 | 0.6 | 2026-09-24 | Kevin + Claude | Analyse 0.4 : mode libre par défaut et mode station en raccourci, emplacements, P1 et P2 reformulés, format d'image arrêté. La phase 3 fait de la restauration un clonage dont la source est une image ; la phase 4 porte les emplacements, les modes et les filets de P2. Note de transition sur les rôles du code actuel |
 | 0.7 | 2026-09-25 | Kevin + Claude | Phase 3 terminée : une image du Windows du port 1, restaurée vers trois cibles effacées, démarre sur trois machines. Montage d'un disque USB dédié et essai du refus FAT32 reportés en phase 4, faute de disque |
 | 0.8 | 2026-09-25 | Kevin + Claude | Analyse 0.5 : interface arrêtée, partage réseau Windows dans le MVP. La phase 4 porte l'interface du §9, les modes, le partage réseau et le lancement automatique du mode station |
+| 0.9 | 2026-09-25 | Kevin + Claude | Phase 4 terminée sur la station A. Restent trois essais qui demandent du matériel : un disque USB dédié (cible, montage, FAT32) et un redémarrage réel en lancement automatique. Enseignements : réserve d'écriture commune, retrait à chaud, partage réseau lent, unité systemd |
 
 ---
 
@@ -307,7 +308,7 @@ Ce que les essais ont appris :
 encore, et essayer le refus FAT32 sur un vrai disque. Aujourd'hui, `storage` ne voit que les
 systèmes de fichiers déjà montés — celui du T7, par exemple.
 
-### Phase 4 — Interface et modes · taille L
+### Phase 4 — Interface et modes · taille L · **terminée le 2026-09-25**
 
 - `devices` : les emplacements du §3.1 — SATA sur plusieurs contrôleurs, NVMe, USB ramenés à un
   connecteur physique (un port USB 3 et son jumeau USB 2 ne font qu'un) — et les deux filets de
@@ -339,6 +340,49 @@ quitte, et son lancement automatique fonctionne ; en mode libre, une image se re
 disque USB et le disque système n'est jamais proposé ; une sauvegarde et une restauration passent
 par le partage réseau ; et le retrait volontaire d'une cible en cours de copie est signalé à l'écran
 sans perturber les autres.
+
+**Résultat.** `devices` réécrit autour des emplacements et des filets, `montage`, `config`,
+`reseau`, `storage`, `cache`, `health`, `demarrage`, `verrou`, `texte`, et l'interface
+(`ui/model`, `ui/ecran`, `ui/app`) ; `python3 -m clonegator` l'ouvre. Essais automatiques :
+`tests.test_emplacements` (machine simulée : deux contrôleurs SATA, NVMe, USB 3 et son jumeau,
+concentrateur), `tests.test_sante`, `tests.test_interface`. Le banc simulé prévu ici n'a pas été
+nécessaire : ces essais sans disque couvrent les états qu'il devait produire.
+
+| Essai, dans l'interface | Résultat |
+|-------------------------|----------|
+| clonage SATA1 → SATA2, SATA3 | 2 réussies, 2 min 31 s |
+| sauvegarde vers le partage réseau | 9,6 Go en 2 min 39 s ; mot de passe ni enregistré ni journalisé |
+| restauration depuis le partage → SATA4, SATA5 | 2 réussies, 3 min 54 s |
+| mode station : assistant, accueil, raccourcis, sortie, retour pré-rempli | conforme |
+| retrait d'un disque de la station | le tableau le montre vide, puis revenu, sans rien toucher |
+| retrait à chaud d'une cible en pleine copie, vers cinq | échec nommé en moins de 5 s, les quatre autres réussies en 2,5 min |
+| lancement automatique, démarré à la main | l'accueil du mode station sur tty1, lu sur `/dev/vcs1` |
+| arrêt de la machine pendant un clonage (SIGTERM) | cibles INTERROMPUES, rapport écrit, source rendue, sortie propre |
+
+Ce que les essais ont appris :
+
+- **La réserve d'écriture du noyau est commune à toute la machine.** Un disque retiré en pleine
+  copie n'écrit plus rien, mais le noyau continue d'accepter ce qu'on lui envoie : 7 Go en
+  attente ont gelé toutes les écritures, et le moteur a abandonné les quatre cibles *saines*
+  pendant que la cible retirée se traînait. Deux remèdes : un plafond par disque (`max_bytes`
+  512 Mio, `strict_limit`), qui a même accéléré le groupe (237 Mo/s contre 226), et une
+  surveillance de la présence de chaque cible toutes les 2 s.
+- **Une synchronisation finale peut durer des minutes** : 207 s pour vider les Go gardés en
+  attente vers un partage à 36 Mo/s, prise pour un blocage. Vers un fichier, le noyau est invité à
+  écrire au fil de l'eau (`fadvise` toutes les 64 Mio) : 22 s. Pas vers les disques, où cela
+  coûtait 8 %. Et la synchronisation finale a droit à un délai de grâce.
+- **Le partage réseau d'essai** écrit entre 36 et 69 Mo/s et lit à 56 Mo/s : moins que le
+  gigabit ne le laisse espérer, le serveur fixe le rythme.
+- **Une unité systemd sur tty1** doit démarrer *après* l'invite de connexion qu'elle remplace
+  (`After=getty@tty1.service`), sinon la fermeture de sa session raccroche le terminal.
+- **La police de la console** (Uni2-Fixed16) n'a pas « ⚠ ». Accents, flèches et « ✗ » y sont.
+
+**Reste, faute de matériel ou de redémarrage :**
+
+- un disque USB dédié : restauration vers un disque USB en mode libre, montage d'un disque de
+  sauvegardes qui ne l'est pas, refus d'un disque FAT32 ;
+- un redémarrage réel de la station en lancement automatique ;
+- SMART sur un disque réellement usé ou défaillant (les sept de la station sont sains).
 
 **Transition jusqu'ici.** Tant que la phase 4 n'est pas faite, `devices.role` applique les
 règles de la révision 0.3 de l'analyse : port 1 source, autres ports SATA cibles, USB jamais
