@@ -176,6 +176,12 @@ _ECRIVENT = {cmd_essai_diffusion, cmd_cloner, cmd_sauvegarder, cmd_restaurer}
 def main(argv: list[str] | None = None) -> int:
     args = construire_analyseur().parse_args(argv)
     fonction = getattr(args, "fonction", cmd_interface)
+
+    # Lire et écrire des disques exige root. Le dire clairement, plutôt que de
+    # laisser une erreur Python à l'écran.
+    if os.geteuid() != 0 and fonction is not cmd_version:
+        print("CloneGator doit être lancé en root :  sudo clonegator", file=sys.stderr)
+        return 1
     format_ = logging.Formatter("%(asctime)s %(levelname)s %(name)s : %(message)s")
 
     if fonction is cmd_interface:
