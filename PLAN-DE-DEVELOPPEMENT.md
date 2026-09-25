@@ -381,9 +381,8 @@ Ce que les essais ont appris :
   (`After=getty@tty1.service`), sinon la fermeture de sa session raccroche le terminal.
 - **La police de la console** (Uni2-Fixed16) n'a pas « ⚠ ». Accents, flèches et « ✗ » y sont.
 
-**Reste, faute de matériel ou de redémarrage :**
+**Reste, faute de matériel :**
 
-- un redémarrage réel de la station en lancement automatique ;
 - SMART sur un disque réellement usé ou défaillant (les sept de la station sont sains).
 
 **Transition jusqu'ici.** Tant que la phase 4 n'est pas faite, `devices.role` applique les
@@ -404,8 +403,9 @@ paquet seul, démarre sur l'interface, et clone un disque qui démarre.
 commit, et c'est elle que le logiciel affiche. Sur la station A : installation par `apt`
 (dépendances résolues), commande `clonegator` utilisable de partout, unité du mode station
 pointant sur `/usr/bin/clonegator`, désinstallation qui rend la console à son invite de
-connexion. Restent le redémarrage réel en lancement automatique, depuis le paquet installé, et
-la recette sur la station B.
+connexion. Redémarrage réel en lancement automatique depuis le paquet installé, fait par Kevin
+le 2026-09-25 : la station s'ouvre sur l'accueil du mode station. Reste la recette sur la
+station B.
 
 ---
 

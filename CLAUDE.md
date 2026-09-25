@@ -68,8 +68,7 @@ fonctions, commentaires, messages de commit. S'y tenir.
 
 Phases 1 à 4 terminées. `python3 -m clonegator` ouvre l'interface : mode libre
 (sauvegarder, restaurer, cloner), mode station, journaux, partage réseau.
-Restent deux essais : un redémarrage réel en lancement automatique, un disque
-réellement usé pour SMART (plan, phase 4). Les
+Reste un essai : un disque réellement usé pour SMART (plan, phase 4). Les
 sous-commandes servent au développement.
 
 ```bash
@@ -90,8 +89,8 @@ réglages : `/etc/clonegator/clonegator.json`. Un seul CloneGator à la fois
 
 Phase 5 en cours : `./outils/construire-paquet.sh` construit le `.deb` dans
 `dist/` (dépôt commité exigé), installé sur la station A par
-`apt install ./dist/clonegator_*_all.deb`. Restent le redémarrage réel en
-lancement automatique et la recette sur la station B.
+`apt install ./dist/clonegator_*_all.deb` ; redémarrage en lancement
+automatique validé. Reste la recette sur la station B.
 
 ## Essais
 
