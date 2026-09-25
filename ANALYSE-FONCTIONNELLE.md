@@ -13,6 +13,7 @@ Successeur de `clonesrv`, réécrit à partir de zéro.
 | 0.4 | 2026-09-24 | Kevin + Claude | Deux modes : libre par défaut, station en raccourci enregistré (§3). P1 porte sur la source de chaque opération ; P2 devient deux filets, disque utilisé par le système et disque d'archives ; P3 raisonne en emplacements. NVMe et USB pris en charge. Format d'image arrêté (§7.2) ; une cible de restauration est jugée sur la taille requise (§8). Un Windows mal arrêté est annoncé à la confirmation (§6.2) |
 | 0.5 | 2026-09-25 | Kevin + Claude | Interface arrêtée (§9) : accueil par opération, déroulement en étapes, pilotage au clavier (flèches, Entrée, numéros), « sauvegarde » dans le vocabulaire de l'écran. Partage réseau Windows (SMB) pour les sauvegardes, entré dans le MVP ; connexion mémorisée sauf le mot de passe. Mode station : lancement automatique en option, assistant pré-rempli, reprise du dernier mode au redémarrage |
 | 0.6 | 2026-09-25 | Kevin + Claude | Listes à cocher : Entrée coche comme Espace, une ligne « Valider » termine le choix. Libellés de l'assistant du mode station reformulés |
+| 0.7 | 2026-09-25 | Kevin + Claude | Mode PXE inscrit au backlog (§17) : la machine distribue CloneGator par le réseau, avec un menu d'images démarrables en option et, plus tard, un renvoi vers un autre serveur de démarrage |
 
 ---
 
@@ -158,6 +159,8 @@ sauvegarde (§7.3) est donc possible sans contrainte.
 
 - Clé ou ISO live bootable, qui porte le mode libre sur n'importe quel PC (prévue une fois le
   paquet stabilisé)
+- Mode PXE : la machine distribue CloneGator et des images démarrables par le réseau (§17).
+  Il s'appuie sur le CloneGator live de la ligne précédente
 - Partage réseau NFS pour les sauvegardes
 - Redimensionnement de la dernière partition sur une cible plus grande
 - Effacement sécurisé de disques en fin de vie
@@ -666,3 +669,51 @@ Ce que la décision n'autorise pas :
 décrits au §9 : un tableau des emplacements qui se rafraîchit tout seul à l'insertion d'un disque
 et une ligne de progression indépendante par cible ne se font pas correctement avec `whiptail`
 ou `dialog`, qui raisonnent en boîtes de dialogue successives.
+
+---
+
+## 17. Mode PXE — à venir
+
+Inscrit au backlog le 2026-09-25. Rien n'est planifié ; les choix techniques ci-dessous sont des
+pistes, à trancher un point à la fois avant d'entrer dans le plan.
+
+### 17.1 L'idée
+
+Un troisième mode, à côté du mode libre et du mode station. On l'active en un geste depuis
+l'accueil, et la machine devient un **serveur de démarrage réseau qui distribue CloneGator**.
+L'administrateur n'a plus qu'une chose à faire : régler son DHCP pour qu'il désigne ce serveur.
+
+### 17.2 Ce que voit un poste qui démarre par le réseau
+
+- **Sans autre réglage** : CloneGator démarre directement, avec l'accueil habituel.
+- **Images supplémentaires activées** : depuis le mode PXE, l'opérateur désigne un dossier sur
+  n'importe quel disque relié à la machine, interne ou externe. Un poste qui démarre voit alors
+  un menu : « Ouvrir CloneGator » en premier, puis une entrée par image démarrable trouvée dans
+  le dossier (ISO, WIM ou autre format démarrable). Déposer un fichier dans le dossier suffit à
+  l'ajouter au menu, à la manière de Ventoy, mais par le réseau.
+- **Plus tard, dans une phase suivante** : une entrée de menu qui renvoie vers un autre serveur
+  de démarrage (un WDS d'entreprise, un autre serveur PXE Linux, ou simplement une adresse IP).
+  Les particularités de chaque cas restent à vérifier.
+
+### 17.3 Le mode station sur un poste démarré par le réseau
+
+Disponible dès la première version. À l'activation, CloneGator détecte s'il tourne depuis le
+réseau : la question du lancement automatique au démarrage (§3.3) n'est posée que si elle a un
+sens, c'est-à-dire sur un système installé.
+
+### 17.4 Ce que ça suppose
+
+- **Un CloneGator live** (§4, §15) : un système minimal contenant CloneGator, qui démarre en
+  mémoire. C'est le plus gros morceau, et il sert aussi à la clé USB démarrable.
+- **Un chargeur réseau**, iPXE pressenti : il affiche le menu, démarre une image WIM (avec
+  wimboot), renvoie vers un autre serveur, et télécharge en HTTP, bien plus vite qu'en TFTP. Les
+  ISO sont le cas délicat : beaucoup ne démarrent pas telles quelles par le réseau, il faudra les
+  essayer famille par famille.
+- **BIOS et UEFI** demandent deux chargeurs différents ; **Secure Boot** refuse iPXE sans
+  disposition particulière. C'est probablement la contrainte la plus visible côté utilisateur.
+- **Le DHCP** : un « proxy DHCP » répondrait aux seules demandes de démarrage, sans remplacer le
+  DHCP existant ni exiger qu'on le modifie. À évaluer : il rendrait le « un seul geste » vrai
+  jusqu'au bout.
+- **Les outils** (dnsmasq pour TFTP et proxy DHCP, iPXE) sont dans les dépôts Debian et Ubuntu :
+  la règle « rien hors des dépôts de la distribution » (§15, §16) tient.
+
