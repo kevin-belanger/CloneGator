@@ -66,7 +66,7 @@ fonctions, commentaires, messages de commit. S'y tenir.
 
 ## Où on en est
 
-Phases 1 à 4 terminées. `python3 -m clonegator` ouvre l'interface : mode libre
+Phases 1 à 5 terminées : le MVP est livré. `python3 -m clonegator` ouvre l'interface : mode libre
 (sauvegarder, restaurer, cloner), mode station, journaux, partage réseau.
 Reste un essai : un disque réellement usé pour SMART (plan, phase 4). Les
 sous-commandes servent au développement.
@@ -87,10 +87,11 @@ Journaux : `/var/log/clonegator/<date>_<opération>/` (avec `rapport.txt`) ;
 réglages : `/etc/clonegator/clonegator.json`. Un seul CloneGator à la fois
 (verrou dans `/run/clonegator`).
 
-Phase 5 en cours : `./outils/construire-paquet.sh` construit le `.deb` dans
-`dist/` (dépôt commité exigé), installé sur la station A par
-`apt install ./dist/clonegator_*_all.deb` ; redémarrage en lancement
-automatique validé. Reste la recette sur la station B.
+Phase 5 terminée, MVP livré. `./outils/construire-paquet.sh` construit le
+`.deb` dans `dist/` (dépôt commité exigé). Publier : étiquette
+`v<version>` (`~` → `-`, `+` → `.`), `gh release create`, et joindre aussi une
+copie nommée `clonegator.deb` pour l'adresse courte
+`github.com/kevin-belanger/CloneGator/releases/latest/download/clonegator.deb`.
 
 ## Essais
 

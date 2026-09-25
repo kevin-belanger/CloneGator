@@ -1,6 +1,6 @@
 # CloneGator — Plan de développement
 
-Compagnon de [ANALYSE-FONCTIONNELLE.md](ANALYSE-FONCTIONNELLE.md), révision 0.9.
+Compagnon de [ANALYSE-FONCTIONNELLE.md](ANALYSE-FONCTIONNELLE.md), révision 1.0.
 Les renvois `§n` pointent vers l'analyse.
 
 | Rév. | Date | Auteur | Changement |
@@ -14,6 +14,7 @@ Les renvois `§n` pointent vers l'analyse.
 | 0.7 | 2026-09-25 | Kevin + Claude | Phase 3 terminée : une image du Windows du port 1, restaurée vers trois cibles effacées, démarre sur trois machines. Montage d'un disque USB dédié et essai du refus FAT32 reportés en phase 4, faute de disque |
 | 0.8 | 2026-09-25 | Kevin + Claude | Analyse 0.5 : interface arrêtée, partage réseau Windows dans le MVP. La phase 4 porte l'interface du §9, les modes, le partage réseau et le lancement automatique du mode station |
 | 0.9 | 2026-09-25 | Kevin + Claude | Phase 4 terminée sur la station A, essais avec un disque USB compris (montage, FAT32, cible). Restent un redémarrage réel en lancement automatique et un disque réellement usé pour SMART. Enseignements : réserve d'écriture commune, retrait à chaud, partage réseau lent, unité systemd |
+| 1.0 | 2026-09-25 | Kevin + Claude | Phase 5 terminée : paquet .deb publié en release GitHub, installé et éprouvé sur une machine neuve. MVP livré |
 
 ---
 
@@ -390,7 +391,7 @@ règles de la révision 0.3 de l'analyse : port 1 source, autres ports SATA cibl
 cloné. C'est exactement le réglage de la station de développement, un cas particulier du mode
 station ; la phase 4 le remplace, elle ne l'enrichit pas.
 
-### Phase 5 — Paquet et recette · taille S · **sur la station B**
+### Phase 5 — Paquet et recette · taille S · **sur la station B** · **terminée le 2026-09-25**
 
 - `.deb`, unité systemd, `/etc`, `/var/log`
 - un README qui tient en un écran
@@ -404,8 +405,14 @@ commit, et c'est elle que le logiciel affiche. Sur la station A : installation p
 (dépendances résolues), commande `clonegator` utilisable de partout, unité du mode station
 pointant sur `/usr/bin/clonegator`, désinstallation qui rend la console à son invite de
 connexion. Redémarrage réel en lancement automatique depuis le paquet installé, fait par Kevin
-le 2026-09-25 : la station s'ouvre sur l'accueil du mode station. Reste la recette sur la
-station B.
+le 2026-09-25 : la station s'ouvre sur l'accueil du mode station.
+
+**Recette (Kevin, 2026-09-25)** : sur un Ubuntu neuf, le paquet publié en release GitHub
+(`github.com/kevin-belanger/CloneGator/releases/latest/download/clonegator.deb`) s'installe par
+`apt`, CloneGator s'ouvre avec `sudo`, montre les ports SATA de la machine même sans baie
+branchée, et mène une opération entre le partage réseau et un disque USB. Kevin juge la recette
+suffisante : **phase 5 terminée, MVP livré.** Lancé sans root, CloneGator le dit désormais en
+une phrase au lieu d'une trace Python.
 
 ---
 
