@@ -12,6 +12,7 @@ Successeur de `clonesrv`, réécrit à partir de zéro.
 | 0.3 | 2026-09-16 | Kevin + Claude | Aucune gestion des sauvegardes dans le MVP : le logiciel lit le disque de stockage, il n'en modifie jamais le contenu. Clavier permanent confirmé. Langage tranché : Python 3, bibliothèque standard seule. Questions ouvertes closes |
 | 0.4 | 2026-09-24 | Kevin + Claude | Deux modes : libre par défaut, station en raccourci enregistré (§3). P1 porte sur la source de chaque opération ; P2 devient deux filets, disque utilisé par le système et disque d'archives ; P3 raisonne en emplacements. NVMe et USB pris en charge. Format d'image arrêté (§7.2) ; une cible de restauration est jugée sur la taille requise (§8). Un Windows mal arrêté est annoncé à la confirmation (§6.2) |
 | 0.5 | 2026-09-25 | Kevin + Claude | Interface arrêtée (§9) : accueil par opération, déroulement en étapes, pilotage au clavier (flèches, Entrée, numéros), « sauvegarde » dans le vocabulaire de l'écran. Partage réseau Windows (SMB) pour les sauvegardes, entré dans le MVP ; connexion mémorisée sauf le mot de passe. Mode station : lancement automatique en option, assistant pré-rempli, reprise du dernier mode au redémarrage |
+| 0.6 | 2026-09-25 | Kevin + Claude | Listes à cocher : Entrée coche comme Espace, une ligne « Valider » termine le choix. Libellés de l'assistant du mode station reformulés |
 
 ---
 
@@ -434,8 +435,8 @@ Contraintes supplémentaires :
   métier — on parle de « sauvegarde », pas d'« image » ; les détails techniques (moteur de
   copie, nom `sdX`) restent disponibles, en second plan.
 - **Au clavier** : flèches et Entrée, et chaque choix porte un numéro qu'on peut taper
-  directement. Espace coche ou décoche un disque dans une liste à choix multiple. Échap revient
-  à l'étape précédente.
+  directement. Dans une liste à cocher, Entrée, Espace ou le numéro cochent et décochent ; une
+  ligne « Valider », en bas, termine le choix. Échap revient à l'étape précédente.
 - **Une opération = des étapes** : on choisit l'opération, puis les disques, puis on confirme.
 - Rien ne se lance au démarrage de la machine, sauf en mode station si on l'a demandé (§3.3).
 

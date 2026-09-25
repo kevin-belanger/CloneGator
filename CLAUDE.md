@@ -35,11 +35,6 @@ filets de P2 — vivent **à un seul endroit**,
 ne pas ajouter de vérification par-dessus. Le moteur (`engine/`) ne regarde
 jamais le rôle d'un disque.
 
-**Transition** : jusqu'à la phase 4, `Disque.role` applique encore les règles
-d'avant l'analyse 0.4 — port 1 source, autres ports SATA cibles, USB jamais
-cloné. C'est le réglage de la station de développement ; la phase 4 le
-remplace par les modes.
-
 Les autres principes (P3 à P6) sont au §2 de l'analyse.
 
 ## Contraintes techniques

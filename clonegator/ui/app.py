@@ -31,7 +31,8 @@ DEBIT_LECTURE = 150e6
 DEBIT_SAUVEGARDE = {False: 100e6, True: 55e6}  # disque USB, partage réseau
 
 AIDE_LISTE = "↑↓ ou numéro : choisir    Entrée : valider    Échap : retour"
-AIDE_COCHER = "↑↓ : se déplacer    Espace ou numéro : cocher    Entrée : valider    Échap : retour"
+AIDE_COCHER = ("↑↓ : se déplacer    Entrée, Espace ou numéro : cocher    "
+               "« Valider », en bas, pour terminer    Échap : retour")
 AIDE_FORMULAIRE = "Tapez le texte    Entrée : champ suivant, puis valider    Échap : retour"
 AIDE_LIRE = "↑↓ : faire défiler    Entrée : revenir"
 
@@ -207,7 +208,7 @@ class Application:
         while True:
             if etape == 0:
                 liste = Liste("", [element(e) for e in emplacements],
-                              explication="Quel emplacement recevra toujours le disque à copier ?")
+                              explication="Sélectionnez l'emplacement source.")
                 if source:
                     liste.placer(source)
                 choix = self.ecran.choisir(self._page("Mode station — la source", aide=AIDE_LISTE), liste)
@@ -218,7 +219,7 @@ class Application:
             elif etape == 1:
                 autres = [e for e in emplacements if e.cle != source]
                 liste = Liste("", [element(e) for e in autres], multiple=True,
-                              explication="Quels emplacements seront effacés à chaque clonage ?")
+                              explication="Sélectionnez les emplacements cibles. Leur contenu sera effacé à chaque clonage.")
                 liste.cocher(cibles or [e.cle for e in autres])
                 choix = self.ecran.choisir(self._page("Mode station — les cibles", aide=AIDE_COCHER), liste)
                 if choix is None:
@@ -230,7 +231,8 @@ class Application:
                 liste = Liste("", [
                     Element("Oui", True, detail="la machine démarre directement sur le mode station"),
                     Element("Non", False, detail="on lance CloneGator soi-même"),
-                ], explication="Ouvrir CloneGator automatiquement au démarrage de la machine ?")
+                ], explication="Voulez-vous que CloneGator démarre automatiquement en mode station "
+                               "au démarrage de cet ordinateur ?")
                 liste.placer(bool(precedent and precedent.lancement_auto))
                 choix = self.ecran.choisir(
                     self._page("Mode station — lancement automatique", aide=AIDE_LISTE), liste)

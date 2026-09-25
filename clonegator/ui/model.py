@@ -72,7 +72,16 @@ class Liste:
             self.curseur = actifs[0]
 
     def _actifs(self) -> list[int]:
-        return [i for i, e in enumerate(self.elements) if e.actif]
+        """Les rangs où le curseur peut aller. Une liste à cocher se termine par
+        une ligne « Valider », au rang len(elements)."""
+        rangs = [i for i, e in enumerate(self.elements) if e.actif]
+        if self.multiple:
+            rangs.append(len(self.elements))
+        return rangs
+
+    @property
+    def sur_valider(self) -> bool:
+        return self.multiple and self.curseur == len(self.elements)
 
     def placer(self, valeur) -> None:
         """Présélectionne l'élément qui porte cette valeur, s'il est actif."""
@@ -111,11 +120,13 @@ class Liste:
                     self._basculer(numero)
                 else:
                     return VALIDER
-        elif touche == "espace" and self.multiple:
+        elif touche in ("espace", "entree") and self.multiple and not self.sur_valider:
+            # Dans une liste à cocher, Entrée coche comme Espace ; on valide
+            # sur la ligne « Valider », en bas.
             self._basculer(self.curseur)
         elif touche == "entree":
             if self.multiple and not self.coches:
-                self.message = "Cochez au moins un disque (Espace ou son numéro)."
+                self.message = "Cochez au moins un emplacement avant de valider."
                 return None
             return VALIDER
         return None
@@ -150,6 +161,8 @@ class Liste:
             if element.detail:
                 ligne.morceaux.append((f"   {element.detail}", GRISE if not element.actif else AIDE))
             lignes.append(ligne)
+        if self.multiple:
+            lignes.append(Ligne.de(f"    → Valider ({len(self.coches)} coché{'s' if len(self.coches) > 1 else ''})", FORT))
         return lignes
 
 

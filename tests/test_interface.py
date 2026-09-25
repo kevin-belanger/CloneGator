@@ -57,8 +57,24 @@ class ChoixMultiple(unittest.TestCase):
         liste.touche("3")
         self.assertEqual(liste.choix, ["sata1"])
 
-    def test_entree_sans_rien_coche_refuse_poliment(self):
+    def test_entree_coche_comme_espace(self):
         liste = liste_disques(multiple=True)
+        self.assertIsNone(liste.touche("entree"))
+        self.assertEqual(liste.choix, ["sata1"])
+        liste.touche("entree")
+        self.assertEqual(liste.choix, [])
+
+    def test_on_valide_sur_la_ligne_valider(self):
+        liste = liste_disques(multiple=True)
+        liste.touche("espace")
+        liste.touche("haut")  # depuis le premier disque, on remonte sur « Valider »
+        self.assertTrue(liste.sur_valider)
+        self.assertEqual(liste.touche("entree"), VALIDER)
+        self.assertEqual(liste.choix, ["sata1"])
+
+    def test_valider_sans_rien_coche_refuse_poliment(self):
+        liste = liste_disques(multiple=True)
+        liste.touche("haut")
         self.assertIsNone(liste.touche("entree"))
         self.assertIn("Cochez", liste.message)
 
