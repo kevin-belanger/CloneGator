@@ -11,6 +11,7 @@ Successeur de `clonesrv`, réécrit à partir de zéro.
 | 0.2 | 2026-09-16 | Kevin + Claude | Système de la station sur disque USB ; NVMe/M.2 hors périmètre définitif ; mode brut ajouté à la sauvegarde ; profil des disques traités ; pas de rotation des sauvegardes ; le disque de l'OS est une destination de sauvegarde valide |
 | 0.3 | 2026-09-16 | Kevin + Claude | Aucune gestion des sauvegardes dans le MVP : le logiciel lit le disque de stockage, il n'en modifie jamais le contenu. Clavier permanent confirmé. Langage tranché : Python 3, bibliothèque standard seule. Questions ouvertes closes |
 | 0.4 | 2026-09-24 | Kevin + Claude | Deux modes : libre par défaut, station en raccourci enregistré (§3). P1 porte sur la source de chaque opération ; P2 devient deux filets, disque utilisé par le système et disque d'archives ; P3 raisonne en emplacements. NVMe et USB pris en charge. Format d'image arrêté (§7.2) ; une cible de restauration est jugée sur la taille requise (§8). Un Windows mal arrêté est annoncé à la confirmation (§6.2) |
+| 0.5 | 2026-09-25 | Kevin + Claude | Interface arrêtée (§9) : accueil par opération, déroulement en étapes, pilotage au clavier (flèches, Entrée, numéros), « sauvegarde » dans le vocabulaire de l'écran. Partage réseau Windows (SMB) pour les sauvegardes, entré dans le MVP ; connexion mémorisée sauf le mot de passe. Mode station : lancement automatique en option, assistant pré-rempli, reprise du dernier mode au redémarrage |
 
 ---
 
@@ -24,8 +25,8 @@ CloneGator duplique et sauvegarde des disques, en milieu scolaire. Il sert dans 
   restaurer une image.
 
 Dans les deux cas, il sait cloner un disque vers un ou plusieurs disques, **sauvegarder un disque
-vers une image** stockée sur un disque USB, et **restaurer une image vers un ou plusieurs
-disques** sans avoir à rebrancher le maître d'origine.
+vers une image** stockée sur un disque USB ou un partage réseau, et **restaurer une image vers un
+ou plusieurs disques** sans avoir à rebrancher le maître d'origine.
 
 L'objectif de conception tient en une phrase : **faire ce que Clonezilla fait bien, mais sans
 jamais demander à l'opérateur de choisir un moteur, un format ou un nom de périphérique.**
@@ -53,7 +54,7 @@ L'opérateur choisit ses disques ; deux règles l'empêchent de détruire ce qui
   pas monté : c'est un disque d'archives.
 
 Tout le reste relève du choix de l'opérateur, sur un écran de confirmation qui montre exactement
-ce qui sera détruit (§9.2). Aucune autre vérification ne s'y ajoute.
+ce qui sera détruit (§9.5). Aucune autre vérification ne s'y ajoute.
 
 **P3 — L'opérateur raisonne en emplacements.**
 Chaque disque est désigné par l'endroit où il est branché — `SATA1`, `NVMe1`, `USB2` —, suivi à
@@ -117,8 +118,15 @@ choisir d'autre. Trois opérations en profitent :
 - **restaurer** une image vers les cibles ;
 - **sauvegarder** la source vers une image.
 
-Le réglage est enregistré et retrouvé au redémarrage (§15). On quitte le mode station à tout
-moment pour revenir au mode libre.
+On l'active par un assistant : emplacement source, emplacements cibles, et, en option,
+**lancement automatique au démarrage** — la machine s'allume alors directement sur l'accueil du
+mode station, même après une coupure de courant. Rien ne se lance automatiquement en dehors de
+ce mode.
+
+Le réglage est enregistré (§15). On quitte le mode station à tout moment pour revenir au mode
+libre, ce qui coupe aussi le lancement automatique ; y revenir rouvre l'assistant pré-rempli avec
+le dernier réglage, que quelques Entrée suffisent à reprendre. Au redémarrage, CloneGator reprend
+le mode dans lequel on l'a laissé.
 
 **Seuls les emplacements internes, SATA et NVMe, peuvent faire partie d'un réglage de station.**
 En mode station, tout disque présent dans un emplacement cible est effacé sans qu'on l'ait
@@ -129,8 +137,8 @@ La station de développement a six baies SATA : source en `SATA1`, cibles de `SA
 
 ### 3.4 Stockage des images et poste de travail
 
-Les images vivent sur un disque USB ; celui qui porte le système en est un comme un autre (§7.4).
-Aucun disque interne ne sert de stockage d'images.
+Les sauvegardes vivent sur un disque USB — celui qui porte le système en est un comme un autre —
+ou sur un **partage réseau Windows** (§7.4). Aucun disque interne ne sert de stockage.
 
 La machine dispose en permanence d'un écran et d'un clavier. La saisie de l'étiquette d'une
 sauvegarde (§7.3) est donc possible sans contrainte.
@@ -140,7 +148,7 @@ sauvegarde (§7.3) est donc possible sans contrainte.
 ### Dans le MVP
 
 1. Clonage d'un disque vers un ou plusieurs disques
-2. Sauvegarde d'un disque vers une image sur USB
+2. Sauvegarde d'un disque vers une image, sur un disque USB ou un partage réseau Windows
 3. Restauration d'une image vers un ou plusieurs disques
 4. Mode libre et mode station (§3)
 5. Tableau des emplacements, journalisation, rapport par cible
@@ -149,7 +157,7 @@ sauvegarde (§7.3) est donc possible sans contrainte.
 
 - Clé ou ISO live bootable, qui porte le mode libre sur n'importe quel PC (prévue une fois le
   paquet stabilisé)
-- Destination réseau des images (SMB/NFS)
+- Partage réseau NFS pour les sauvegardes
 - Redimensionnement de la dernière partition sur une cible plus grande
 - Effacement sécurisé de disques en fin de vie
 - File d'attente de tâches, plusieurs sources successives
@@ -342,21 +350,30 @@ Décisions de format :
 - **Pas de compatibilité Clonezilla.** Son format, proche, est nommé d'après les `/dev/sdX` ; le
   `LISEZMOI.txt` couvre le besoin de secours.
 
-### 7.3 Étiquette
+### 7.3 Nom de la sauvegarde
 
-L'opérateur saisit une étiquette courte au lancement (ex. `Win11-labo-info`). C'est la seule
-saisie de texte du logiciel en fonctionnement normal. Elle est reprise dans le nom du dossier et
-affichée dans la liste des sauvegardes. Une valeur par défaut est proposée à partir du modèle du
-disque.
+L'opérateur donne à la sauvegarde un nom court (ex. `Win11-labo-info`), pour la reconnaître dans
+la liste de restauration. Il est repris dans le nom du dossier, après la date, et affiché dans la
+liste des sauvegardes. Le champ est pré-rempli à partir du modèle du disque : Entrée suffit si on
+n'a pas d'idée. Les métadonnées l'appellent `etiquette`.
 
-### 7.4 Sélection du support de stockage
+### 7.4 Où sont les sauvegardes
 
-- Tous les disques USB sont détectés automatiquement, **y compris celui qui porte le système** —
-  de la station ou de la clé de démarrage : c'est une destination valide, il n'y a pas de raison
-  de l'écarter.
-- Un seul candidat → il est sélectionné sans question.
-- Plusieurs → l'opérateur choisit dans une liste affichant modèle, taille et espace libre.
-- Aucun → la sauvegarde est indisponible et le menu le dit explicitement.
+À la sauvegarde comme à la restauration, une étape demande où se trouvent les sauvegardes. Elle
+apparaît toujours, le choix le plus probable présélectionné :
+
+- **un disque USB**, détecté automatiquement, **y compris celui qui porte le système** — de la
+  station ou de la clé de démarrage : c'est une destination valide, il n'y a pas de raison de
+  l'écarter. Un disque qui n'est pas encore monté l'est par CloneGator. La liste affiche modèle,
+  taille et espace libre ;
+- **un partage réseau Windows** (SMB) : hôte, nom du partage, utilisateur et mot de passe. Les
+  trois premiers sont mémorisés (§15). Le mot de passe est redemandé à chaque fois et n'est
+  jamais ni enregistré ni écrit dans un journal : la console d'une station s'ouvre sans mot de
+  passe, un secret enregistré y serait lisible par quiconque s'y assoit.
+
+Sur l'un comme sur l'autre, les sauvegardes vivent dans `CloneGator/`, à la racine. Un partage
+réseau plafonne vers 110 Mo/s sur un réseau gigabit : du même ordre que la lecture d'un disque
+maître courant, plus lent qu'un disque USB rapide.
 
 ### 7.5 Espace disponible et ménage
 
@@ -381,9 +398,9 @@ avant** que ce soit un problème :
 
 ## 8. Fonctionnalité 3 — Restauration d'une image
 
-L'opérateur parcourt les sauvegardes présentes sur le disque USB. Chacune est présentée avec son
-étiquette, sa date, son mode (`auto` ou `brut`), le modèle et la taille du disque d'origine, et sa
-taille sur disque. Il en choisit une, et elle est restaurée vers **les disques qu'il choisit, un
+L'opérateur choisit où sont les sauvegardes (§7.4), puis parcourt celles qui s'y trouvent, la
+plus récente en haut. Chacune est présentée avec son nom, sa date, son mode (`auto` ou `brut`),
+le modèle et la taille du disque d'origine, et sa taille. Il en choisit une, et elle est restaurée vers **les disques qu'il choisit, un
 ou plusieurs** — vers les emplacements cibles en mode station —, selon exactement la même
 mécanique que le clonage direct : une restauration est un clonage dont la source est l'image.
 
@@ -411,59 +428,91 @@ Contraintes supplémentaires :
 
 ## 9. Interface
 
-### 9.1 Écran principal
+### 9.1 Principes
 
-Un seul écran, visible en permanence, qui montre l'état réel du matériel avant toute action :
-chaque disque par son emplacement, et le disque d'images. En mode station, il indique aussi le
-rôle de chaque emplacement :
+- **Pour des techniciens, mais sans mode d'emploi.** Le vocabulaire de l'écran est celui du
+  métier — on parle de « sauvegarde », pas d'« image » ; les détails techniques (moteur de
+  copie, nom `sdX`) restent disponibles, en second plan.
+- **Au clavier** : flèches et Entrée, et chaque choix porte un numéro qu'on peut taper
+  directement. Espace coche ou décoche un disque dans une liste à choix multiple. Échap revient
+  à l'étape précédente.
+- **Une opération = des étapes** : on choisit l'opération, puis les disques, puis on confirme.
+- Rien ne se lance au démarrage de la machine, sauf en mode station si on l'a demandé (§3.3).
+
+### 9.2 Accueil
 
 ```
-┌─ CloneGator 1.0 ── mode station ─────────────────────────────────────────┐
-│  SATA1 (sdf)  SOURCE   ST500DM002-1BD142    465,8 Go   GPT, 4 part.      │
-│                                                        62,4 Go utilisés  │
-│  SATA2 (sdb)  CIBLE    WD2500AAKX-001CA0    232,9 Go   trop petit        │
-│  SATA3 (sdc)  CIBLE    ST500DM002-1BD142    465,8 Go   prêt              │
-│  SATA4 (sdd)  CIBLE    HGST HTS725050A7     500,1 Go   SMART : usure     │
-│  SATA5        CIBLE    (vide)                                            │
-│  SATA6        CIBLE    (vide)                                            │
-├──────────────────────────────────────────────────────────────────────────┤
-│  USB1 (sda)   IMAGES   SanDisk Extreme      1,8 To     412 Go libres     │
-└──────────────────────────────────────────────────────────────────────────┘
+CloneGator 1.0
 
-   1.  Cloner la source vers les cibles
-   2.  Restaurer une image vers les cibles
-   3.  Sauvegarder la source vers une image
-   4.  Quitter le mode station
-   5.  Journaux et diagnostics
+   1.  Sauvegarder
+   2.  Restaurer
+   3.  Cloner
+   4.  Mode station
+   5.  Journaux
    6.  Quitter
 ```
 
-En mode libre, le même tableau liste tous les disques, sans rôle ; le menu propose de cloner un
-disque, sauvegarder un disque, restaurer une image, activer le mode station, consulter les
-journaux et quitter. Les disques que P2 écarte y apparaissent, avec leur motif.
+« Journaux » permet de relire les dernières opérations et leur rapport sans quitter
+l'interface (§10).
 
-L'espace utilisé du disque source est affiché parce qu'il détermine à la fois la durée de
-l'opération et la place nécessaire pour une sauvegarde. C'est l'information qui manque le plus
-souvent au moment de décider.
+### 9.3 Déroulement d'une opération
+
+| Opération | Étapes |
+|-----------|--------|
+| **Cloner** | disque source → disques cibles (cochés) → confirmation → progression → rapport |
+| **Sauvegarder** | disque à sauvegarder → où sont les sauvegardes (§7.4) → nom de la sauvegarde → confirmation → progression → rapport |
+| **Restaurer** | où sont les sauvegardes → la sauvegarde → disques cibles (cochés) → confirmation → progression → rapport |
+
+Chaque liste de disques montre l'emplacement, le modèle, la taille et le contenu. **Les disques
+qu'on ne peut pas choisir restent visibles, grisés, avec leur motif** — utilisé par le système,
+contient des sauvegardes, trop petit pour cette source — : on comprend ainsi pourquoi un disque
+manque.
+
+La copie brute intégrale (§6.3) est choisie automatiquement quand CloneGator ne reconnaît pas la
+table de partitions du disque, et annoncée à la confirmation. Pour les autres cas rares — un
+disque abîmé, par exemple —, une touche de l'écran de confirmation la demande.
+
+### 9.4 Mode station
+
+On l'active depuis l'accueil (§3.3). Son accueil à lui montre les emplacements du réglage, parce
+que son geste est « changer les disques, puis lancer » : on vérifie d'un coup d'œil que chaque
+disque est détecté avant d'appuyer.
+
+```
+CloneGator — mode station
+  SATA1 (sdf)  SOURCE  KINGSTON SA400S3   480,1 Go   Windows, 23 Go utilisés
+  SATA2 (sdb)  CIBLE   KINGSTON SA400S3   480,1 Go   prêt
+  SATA3 (sdc)  CIBLE   WDC WD2500AAKX     250,1 Go   trop petit
+  SATA4        CIBLE   (vide)
+  USB1  (sda)  SAUVEGARDES  PSSD T7        500,1 Go   68 Go libres
+
+  1. Cloner la source vers les cibles
+  2. Restaurer une sauvegarde vers les cibles
+  3. Sauvegarder la source
+  4. Quitter le mode station
+```
 
 Le tableau se rafraîchit automatiquement à l'insertion ou au retrait d'un disque, sans que
-l'opérateur ait à demander un rescan. Un rescan manuel reste disponible dans les diagnostics.
+l'opérateur ait à demander un rescan. L'espace utilisé du disque source y figure parce qu'il
+détermine à la fois la durée de l'opération et la place nécessaire pour une sauvegarde. L'état
+SMART de chaque cible y est résumé (§12).
 
-### 9.2 Écran de confirmation
+### 9.5 Écran de confirmation
 
 Un seul écran avant toute écriture, dans les deux modes, listant exactement ce qui sera détruit :
 
-- la source : l'emplacement, le modèle et le numéro de série du disque, ou l'étiquette et la date
-  de l'image
+- la source : l'emplacement, le modèle et le numéro de série du disque, ou le nom et la date de
+  la sauvegarde
 - pour chaque cible : emplacement, modèle, **numéro de série**, taille
 - le volume estimé à copier et une estimation de durée
 - les partitions copiées intégralement et pourquoi — un Windows mal arrêté en tête (§6.2) —, avec
   la durée qu'elles ajoutent
+- pour une restauration, la vérification préalable de la sauvegarde (§8)
 - les cibles écartées et pourquoi
 
 Le bouton par défaut est **Annuler**. La confirmation demande une action délibérée.
 
-### 9.3 Écran de progression
+### 9.6 Écran de progression
 
 - une ligne par cible, avec son propre pourcentage et son propre état
 - l'étape en cours (préparation, partition 3 sur 4, finalisation)
@@ -471,10 +520,11 @@ Le bouton par défaut est **Annuler**. La confirmation demande une action délib
 - une cible en échec ou bloquée devient immédiatement visible sans faire disparaître les autres
 - l'écran reste lisible de loin : la station tourne sans surveillance rapprochée
 
-### 9.4 Écran de rapport
+### 9.7 Écran de rapport
 
 Affiché à la fin et **jamais effacé automatiquement**. Verdict par cible, durée totale, chemin du
-journal. C'est l'écran qu'on photographie ou qu'on note.
+journal. C'est l'écran qu'on photographie ou qu'on note. Le même rapport est conservé avec le
+journal de l'opération, et relisible depuis « Journaux ».
 
 ---
 
@@ -553,7 +603,8 @@ disque mourant réussit aujourd'hui sans que personne ne le sache.
   débit de la cible la plus lente.
 - **Démarrage** : menu affiché et disques détectés en moins de cinq secondes.
 - **Langue** : interface et journaux entièrement en français.
-- **Saisie** : aucune saisie de texte en fonctionnement normal, hors l'étiquette d'une sauvegarde.
+- **Saisie** : aucune saisie de texte en fonctionnement normal, hors le nom d'une sauvegarde et
+  la connexion à un partage réseau.
 - **Autonomie** : la station tourne sans surveillance ; l'écran final subsiste jusqu'à ce qu'un
   humain le lise.
 - **Version affichée** : le numéro de version figure dans le menu et dans chaque journal, pour
@@ -569,11 +620,12 @@ disque mourant réussit aujourd'hui sans que personne ne le sache.
 installé sur un disque USB.
 
 - code dans `/usr/lib/clonegator/`, commande `clonegator` dans le `PATH`
-- configuration dans `/etc/clonegator/`, dont le réglage du mode station (§3.3)
+- configuration dans `/etc/clonegator/` : le mode courant, le réglage du mode station et son
+  lancement automatique (§3.3), la connexion au partage réseau sans son mot de passe (§7.4)
 - journaux dans `/var/log/clonegator/`
 - unité systemd optionnelle pour lancer l'interface au démarrage sur la console
 - dépendances déclarées par le paquet : `python3`, `partclone`, `util-linux`, `zstd`,
-  `smartmontools`, `ntfs-3g`, `e2fsprogs`, `dosfstools`. Aucune bibliothèque Python tierce
+  `smartmontools`, `ntfs-3g`, `e2fsprogs`, `dosfstools`, `cifs-utils`. Aucune bibliothèque Python tierce
   (§16), donc rien à installer hors des dépôts Debian.
 
 **Ensuite** : une clé ou une ISO live bootable construite à partir du même paquet. Elle porte le

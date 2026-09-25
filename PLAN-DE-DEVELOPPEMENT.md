@@ -1,6 +1,6 @@
 # CloneGator — Plan de développement
 
-Compagnon de [ANALYSE-FONCTIONNELLE.md](ANALYSE-FONCTIONNELLE.md), révision 0.7.
+Compagnon de [ANALYSE-FONCTIONNELLE.md](ANALYSE-FONCTIONNELLE.md), révision 0.8.
 Les renvois `§n` pointent vers l'analyse.
 
 | Rév. | Date | Auteur | Changement |
@@ -12,6 +12,7 @@ Les renvois `§n` pointent vers l'analyse.
 | 0.5 | 2026-09-24 | Kevin + Claude | Phase 2 terminée : un Windows cloné vers cinq cibles démarre sur cinq machines différentes. Résultats et enseignements consignés |
 | 0.6 | 2026-09-24 | Kevin + Claude | Analyse 0.4 : mode libre par défaut et mode station en raccourci, emplacements, P1 et P2 reformulés, format d'image arrêté. La phase 3 fait de la restauration un clonage dont la source est une image ; la phase 4 porte les emplacements, les modes et les filets de P2. Note de transition sur les rôles du code actuel |
 | 0.7 | 2026-09-25 | Kevin + Claude | Phase 3 terminée : une image du Windows du port 1, restaurée vers trois cibles effacées, démarre sur trois machines. Montage d'un disque USB dédié et essai du refus FAT32 reportés en phase 4, faute de disque |
+| 0.8 | 2026-09-25 | Kevin + Claude | Analyse 0.5 : interface arrêtée, partage réseau Windows dans le MVP. La phase 4 porte l'interface du §9, les modes, le partage réseau et le lancement automatique du mode station |
 
 ---
 
@@ -124,7 +125,9 @@ clonegator/
   ui/
     model.py         état affiché, sans curses — testable seul
     screens.py       rendu curses (§9)
-  config.py          réglages, dont le mode station (§3.3), dans /etc/clonegator/
+  reseau.py          partage réseau Windows : montage, identifiants jamais écrits
+  config.py          réglages dans /etc/clonegator/ : mode, réglage de station, lancement
+                     automatique, connexion réseau sans mot de passe
 ```
 
 Deux séparations méritent qu'on y tienne :
@@ -309,14 +312,21 @@ systèmes de fichiers déjà montés — celui du T7, par exemple.
 - `devices` : les emplacements du §3.1 — SATA sur plusieurs contrôleurs, NVMe, USB ramenés à un
   connecteur physique (un port USB 3 et son jumeau USB 2 ne font qu'un) — et les deux filets de
   P2 : ouverture exclusive refusée par le noyau, images CloneGator présentes sur le disque
-- mode libre et mode station (§3.2, §3.3), réglage de station enregistré dans `/etc/clonegator/`
+- mode libre et mode station (§3.2, §3.3), réglage de station enregistré dans `/etc/clonegator/`,
+  assistant pré-rempli, reprise du dernier mode au redémarrage
+- lancement automatique au démarrage en mode station : une unité systemd sur la console, que
+  CloneGator active et désactive lui-même
+- `reseau` : partage Windows (SMB) monté par `mount.cifs` ; le mot de passe passe par un fichier
+  temporaire lisible par root seul, jamais par la ligne de commande — que `sysexec` journalise
+  mot pour mot
 - `storage` : monter un disque USB de stockage qui ne l'est pas, et refuser un FAT32 sur un vrai
   disque (reporté de la phase 3)
 - l'écran de confirmation annonce les partitions copiées intégralement, Windows mal arrêté en
-  tête (§6.2, §9.2)
+  tête (§6.2, §9.5)
 - `ui/model` d'abord, testable et imprimable en texte brut
-- `ui/screens` ensuite : les quatre écrans du §9
-- l'écran de rapport qui ne s'efface jamais tout seul (§9.4)
+- `ui/screens` ensuite : accueil, listes de disques, confirmation, progression, rapport, mode
+  station et journaux (§9) ; un rapport conservé avec chaque journal d'opération
+- l'écran de rapport qui ne s'efface jamais tout seul (§9.7)
 - le banc simulé, ici seulement, pour produire à volonté les états qu'on ne peut pas provoquer :
   disque défaillant au SMART, cible trop petite, six baies pleines
 - rafraîchissement du tableau à l'insertion et au retrait d'un disque — testé en débranchant
@@ -325,8 +335,9 @@ systèmes de fichiers déjà montés — celui du T7, par exemple.
 
 **Fini quand** : le parcours complet — inventaire, confirmation, progression, rapport — tourne
 sur la station A, dans les deux modes ; le réglage de station survit à un redémarrage et se
-quitte ; en mode libre, une image se restaure vers un disque USB et le disque système n'est
-jamais proposé ; et le retrait volontaire d'une cible en cours de copie est signalé à l'écran
+quitte, et son lancement automatique fonctionne ; en mode libre, une image se restaure vers un
+disque USB et le disque système n'est jamais proposé ; une sauvegarde et une restauration passent
+par le partage réseau ; et le retrait volontaire d'une cible en cours de copie est signalé à l'écran
 sans perturber les autres.
 
 **Transition jusqu'ici.** Tant que la phase 4 n'est pas faite, `devices.role` applique les

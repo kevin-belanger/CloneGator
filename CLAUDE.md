@@ -122,3 +122,8 @@ Les commandes disque exigent root : elles s'exécutent donc directement, sans
 `sudo`, qui n'est pas forcément installé. Ne pas préfixer les commandes.
 
 Les disques dans les baies sont des disques d'essai, sacrifiés par définition.
+
+Partage réseau d'essai, créé par Kevin pour les tests : `//10.150.19.15/kevin`,
+utilisateur `kevin`. Le fichier d'identifiants est hors du dépôt, lisible par
+root seul : `/root/.config/clonegator-essais/partage-essai.cred`. Ne jamais
+écrire le mot de passe dans le dépôt, un commit ou un journal.
