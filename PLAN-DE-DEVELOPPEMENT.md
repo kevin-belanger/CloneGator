@@ -13,7 +13,7 @@ Les renvois `§n` pointent vers l'analyse.
 | 0.6 | 2026-09-24 | Kevin + Claude | Analyse 0.4 : mode libre par défaut et mode station en raccourci, emplacements, P1 et P2 reformulés, format d'image arrêté. La phase 3 fait de la restauration un clonage dont la source est une image ; la phase 4 porte les emplacements, les modes et les filets de P2. Note de transition sur les rôles du code actuel |
 | 0.7 | 2026-09-25 | Kevin + Claude | Phase 3 terminée : une image du Windows du port 1, restaurée vers trois cibles effacées, démarre sur trois machines. Montage d'un disque USB dédié et essai du refus FAT32 reportés en phase 4, faute de disque |
 | 0.8 | 2026-09-25 | Kevin + Claude | Analyse 0.5 : interface arrêtée, partage réseau Windows dans le MVP. La phase 4 porte l'interface du §9, les modes, le partage réseau et le lancement automatique du mode station |
-| 0.9 | 2026-09-25 | Kevin + Claude | Phase 4 terminée sur la station A. Restent trois essais qui demandent du matériel : un disque USB dédié (cible, montage, FAT32) et un redémarrage réel en lancement automatique. Enseignements : réserve d'écriture commune, retrait à chaud, partage réseau lent, unité systemd |
+| 0.9 | 2026-09-25 | Kevin + Claude | Phase 4 terminée sur la station A, essais avec un disque USB compris (montage, FAT32, cible). Restent un redémarrage réel en lancement automatique et un disque réellement usé pour SMART. Enseignements : réserve d'écriture commune, retrait à chaud, partage réseau lent, unité systemd |
 
 ---
 
@@ -358,6 +358,10 @@ nécessaire : ces essais sans disque couvrent les états qu'il devait produire.
 | retrait à chaud d'une cible en pleine copie, vers cinq | échec nommé en moins de 5 s, les quatre autres réussies en 2,5 min |
 | lancement automatique, démarré à la main | l'accueil du mode station sur tty1, lu sur `/dev/vcs1` |
 | arrêt de la machine pendant un clonage (SIGTERM) | cibles INTERROMPUES, rapport écrit, source rendue, sortie propre |
+| disque USB branché non monté, choisi pour une sauvegarde | monté par CloneGator, 9,6 Go en 2 min 26 s, démonté ensuite |
+| ce disque, portant désormais des sauvegardes | refusé comme cible : « contient des sauvegardes CloneGator » |
+| ce disque reformaté en FAT32 | refusé comme disque de sauvegardes, avec le motif |
+| restauration vers ce disque USB, en mode libre | 1 réussie en 2 min 52 s, fichiers identiques au maître |
 
 Ce que les essais ont appris :
 
@@ -379,8 +383,6 @@ Ce que les essais ont appris :
 
 **Reste, faute de matériel ou de redémarrage :**
 
-- un disque USB dédié : restauration vers un disque USB en mode libre, montage d'un disque de
-  sauvegardes qui ne l'est pas, refus d'un disque FAT32 ;
 - un redémarrage réel de la station en lancement automatique ;
 - SMART sur un disque réellement usé ou défaillant (les sept de la station sont sains).
 

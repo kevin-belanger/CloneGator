@@ -73,7 +73,8 @@ fonctions, commentaires, messages de commit. S'y tenir.
 
 Phases 1 à 4 terminées. `python3 -m clonegator` ouvre l'interface : mode libre
 (sauvegarder, restaurer, cloner), mode station, journaux, partage réseau.
-Restent trois essais qui demandent du matériel (plan, phase 4). Les
+Restent deux essais : un redémarrage réel en lancement automatique, un disque
+réellement usé pour SMART (plan, phase 4). Les
 sous-commandes servent au développement.
 
 ```bash
