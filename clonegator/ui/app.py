@@ -699,7 +699,9 @@ class _Suivi:
         elif self.volume:
             part = min(100, 100 * lu / self.volume)
             reste = ""
-            if lu and part < 100:
+            # Au tout début, ou si une cible bloque la lecture, l'estimation n'a
+            # aucun sens (« 934 h ») : ne la donner qu'une fois la copie lancée.
+            if part >= 1 and ecoule >= 30 and part < 100:
                 reste = f" — reste environ {texte.duree(ecoule * (self.volume - lu) / lu)}"
             lignes.append(Ligne.de(f"Lu       {texte.taille(lu)} sur ~{texte.taille(self.volume)} "
                                    f"({part:.0f} %){reste}"))
