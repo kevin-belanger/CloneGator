@@ -1,0 +1,6 @@
+# Toute carte réseau filaire prend son adresse par DHCP.
+[Match]
+Type=ether
+
+[Network]
+DHCP=yes

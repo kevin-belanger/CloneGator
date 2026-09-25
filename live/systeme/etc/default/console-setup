@@ -1,0 +1,6 @@
+# Une police qui porte les accents et les symboles de l'interface.
+ACTIVE_CONSOLES="/dev/tty[1-6]"
+CHARMAP="UTF-8"
+CODESET="Uni2"
+FONTFACE="Fixed"
+FONTSIZE="8x16"

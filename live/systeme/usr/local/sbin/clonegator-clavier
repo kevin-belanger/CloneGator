@@ -1,0 +1,22 @@
+#!/bin/sh
+# Lit « clonegator.clavier=disposition[:variante] » sur la ligne de commande du
+# noyau et l'écrit dans /etc/default/keyboard. Sans paramètre : Français (Canada).
+set -e
+disposition=ca
+variante=
+for mot in $(cat /proc/cmdline); do
+    case "$mot" in
+        clonegator.clavier=*)
+            valeur=${mot#clonegator.clavier=}
+            disposition=${valeur%%:*}
+            [ "$valeur" != "$disposition" ] && variante=${valeur#*:}
+            ;;
+    esac
+done
+cat > /etc/default/keyboard <<FIN
+XKBMODEL="pc105"
+XKBLAYOUT="$disposition"
+XKBVARIANT="$variante"
+XKBOPTIONS=""
+BACKSPACE="guess"
+FIN

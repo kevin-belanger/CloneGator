@@ -1,0 +1,22 @@
+# CloneGator s'ouvre d'office sur la console principale du live (§15).
+# En le quittant pour la console, l'invite root prend le relais sur tty1.
+[Unit]
+Description=CloneGator, sur la console du live
+After=systemd-user-sessions.service clonegator-clavier.service console-setup.service
+Conflicts=getty@tty1.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/clonegator
+ExecStopPost=/bin/systemctl --no-block start getty@tty1.service
+StandardInput=tty-force
+StandardOutput=tty
+StandardError=journal
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+Environment=TERM=linux LANG=C.UTF-8
+Restart=no
+
+[Install]
+WantedBy=multi-user.target

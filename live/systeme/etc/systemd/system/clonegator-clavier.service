@@ -1,0 +1,13 @@
+# Applique le clavier choisi au menu de démarrage, avant que la console ne le charge.
+[Unit]
+Description=Clavier choisi au démarrage du live
+DefaultDependencies=no
+# Le système live est déjà monté par l'initrd : pas d'attente, sinon un cycle avec keyboard-setup.
+Before=keyboard-setup.service console-setup.service clonegator-live.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/clonegator-clavier
+
+[Install]
+WantedBy=sysinit.target
