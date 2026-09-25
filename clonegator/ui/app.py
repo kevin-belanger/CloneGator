@@ -73,7 +73,9 @@ class Application:
             ])
             choix = self.ecran.choisir(self._page("Accueil", aide=AIDE_LISTE), liste)
             if choix == "quitter":
-                return
+                if not demarrage.en_live() or self.quitter_live():
+                    return
+                continue
             if choix == "sauvegarder":
                 self.sauvegarder()
             elif choix == "restaurer":
@@ -85,6 +87,20 @@ class Application:
                     return
             elif choix == "journaux":
                 self.journaux()
+
+    def quitter_live(self) -> bool:
+        """En live, quitter CloneGator laisserait un écran vide : on éteint, on
+        redémarre, ou on ouvre une console. Rend False pour revenir à l'accueil."""
+        liste = Liste("", [
+            Element("Éteindre", "eteindre"),
+            Element("Redémarrer", "redemarrer"),
+            Element("Ouvrir une console", "console", detail="un shell root, pour dépanner ; « clonegator » pour revenir"),
+            Element("Revenir à l'accueil", None),
+        ])
+        choix = self.ecran.choisir(self._page("Quitter", aide=AIDE_LISTE), liste)
+        if choix in ("eteindre", "redemarrer"):
+            sysexec.executer(["systemctl", "--no-block", "poweroff" if choix == "eteindre" else "reboot"])
+        return choix is not None
 
     # ------------------------------------------------------------ opérations ---
 
@@ -229,6 +245,12 @@ class Application:
                     continue
                 cibles = choix
                 etape = 2
+                if demarrage.en_live():
+                    # Le live démarre déjà sur CloneGator, et n'enregistre rien.
+                    self.reglages.station = config.ReglageStation(source, cibles, False)
+                    self.reglages.mode = config.MODE_STATION
+                    config.ecrire(self.reglages)
+                    return True
             else:
                 liste = Liste("", [
                     Element("Oui", True, detail="la machine démarre directement sur le mode station"),

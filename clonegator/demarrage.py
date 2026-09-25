@@ -57,6 +57,13 @@ WantedBy=multi-user.target
 """
 
 
+def en_live() -> bool:
+    """CloneGator tourne-t-il depuis le live (§15) ? Il y démarre d'office, et
+    rien de ce qu'il écrit ne survit au redémarrage : un lancement automatique
+    n'y a pas de sens."""
+    return "boot=live" in (sysexec.lire("/proc/cmdline") or "").split()
+
+
 def actif() -> bool:
     return sysexec.executer(["systemctl", "is-enabled", "--quiet", UNITE]).ok
 
