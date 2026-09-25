@@ -14,10 +14,48 @@ from __future__ import annotations
 import logging
 import os
 import time
+from dataclasses import dataclass
 
 from . import VERSION
 
 RACINE = os.environ.get("CLONEGATOR_JOURNAUX", "/var/log/clonegator")
+RAPPORT = "rapport.txt"
+
+
+@dataclass
+class Entree:
+    """Une opération passée, telle que « Journaux » la présente."""
+
+    dossier: str
+    date: str  # « 2026-09-24 20:29 »
+    operation: str
+
+    @property
+    def rapport(self) -> str | None:
+        try:
+            with open(os.path.join(self.dossier, RAPPORT), encoding="utf-8") as fichier:
+                return fichier.read()
+        except OSError:
+            return None
+
+
+def lister(limite: int = 50) -> list[Entree]:
+    """Les dernières opérations, la plus récente en premier."""
+    try:
+        noms = sorted(os.listdir(RACINE), reverse=True)
+    except FileNotFoundError:
+        return []
+    entrees = []
+    for nom in noms:
+        morceaux = nom.split("_", 2)
+        if len(morceaux) != 3 or not os.path.isdir(os.path.join(RACINE, nom)):
+            continue
+        jour, heure, operation = morceaux
+        entrees.append(Entree(os.path.join(RACINE, nom),
+                              f"{jour} {heure[:2]}:{heure[2:4]}", operation))
+        if len(entrees) >= limite:
+            break
+    return entrees
 
 
 class Journal:
@@ -39,6 +77,12 @@ class Journal:
 
         self.log = logging.getLogger("clonegator.journal")
         self.log.info("CloneGator %s — %s", VERSION, operation)
+
+    def ecrire_rapport(self, texte: str) -> None:
+        """Le rapport de fin (§9.7), conservé avec le journal : c'est ce que
+        l'entrée « Journaux » relit, trois semaines plus tard."""
+        with open(os.path.join(self.dossier, RAPPORT), "w", encoding="utf-8") as fichier:
+            fichier.write(texte.rstrip() + "\n")
 
     def fichier(self, nom: str) -> str:
         """Chemin d'un fichier annexe, numéroté dans l'ordre de création."""
