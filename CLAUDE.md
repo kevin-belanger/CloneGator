@@ -66,7 +66,7 @@ fonctions, commentaires, messages de commit. S'y tenir.
 
 ## Où on en est
 
-Phases 1 à 5 terminées : le MVP est livré. `python3 -m clonegator` ouvre l'interface : mode libre
+Phases 1 à 5 terminées : le MVP est livré. Phase 6 à venir : le CloneGator live (plan). `python3 -m clonegator` ouvre l'interface : mode libre
 (sauvegarder, restaurer, cloner), mode station, journaux, partage réseau.
 Reste un essai : un disque réellement usé pour SMART (plan, phase 4). Les
 sous-commandes servent au développement.

@@ -14,6 +14,7 @@ Successeur de `clonesrv`, réécrit à partir de zéro.
 | 0.5 | 2026-09-25 | Kevin + Claude | Interface arrêtée (§9) : accueil par opération, déroulement en étapes, pilotage au clavier (flèches, Entrée, numéros), « sauvegarde » dans le vocabulaire de l'écran. Partage réseau Windows (SMB) pour les sauvegardes, entré dans le MVP ; connexion mémorisée sauf le mot de passe. Mode station : lancement automatique en option, assistant pré-rempli, reprise du dernier mode au redémarrage |
 | 0.6 | 2026-09-25 | Kevin + Claude | Listes à cocher : Entrée coche comme Espace, une ligne « Valider » termine le choix. Libellés de l'assistant du mode station reformulés |
 | 0.7 | 2026-09-25 | Kevin + Claude | Mode PXE inscrit au backlog (§17) : la machine distribue CloneGator par le réseau, avec un menu d'images démarrables en option et, plus tard, un renvoi vers un autre serveur de démarrage |
+| 0.8 | 2026-09-25 | Kevin + Claude | CloneGator live arrêté (§15) : Debian 13, ISO hybride BIOS et UEFI avec Secure Boot, démarrage direct sur l'accueil, trois claviers au menu de démarrage, pas de SSH, rien de conservé d'un démarrage à l'autre |
 
 ---
 
@@ -157,8 +158,7 @@ sauvegarde (§7.3) est donc possible sans contrainte.
 
 ### Hors MVP, envisagé plus tard
 
-- Clé ou ISO live bootable, qui porte le mode libre sur n'importe quel PC (prévue une fois le
-  paquet stabilisé)
+- Clé ou ISO live bootable, qui porte le mode libre sur n'importe quel PC (§15, en cours)
 - Mode PXE : la machine distribue CloneGator et des images démarrables par le réseau (§17).
   Il s'appuie sur le CloneGator live de la ligne précédente
 - Partage réseau NFS pour les sauvegardes
@@ -632,10 +632,28 @@ installé sur un disque USB.
   `smartmontools`, `ntfs-3g`, `e2fsprogs`, `dosfstools`, `cifs-utils`. Aucune bibliothèque Python tierce
   (§16), donc rien à installer hors des dépôts Debian.
 
-**Ensuite** : une clé ou une ISO live bootable construite à partir du même paquet. Elle porte le
-mode libre sur n'importe quel PC, et fige complètement l'environnement d'une station. Non
-planifiée tant que le paquet n'est pas éprouvé. Le système étant déjà sur USB, la transition sera
-surtout un changement de mode de mise à jour.
+### CloneGator live
+
+Une ISO démarrable construite à partir du même paquet. Elle porte CloneGator sur n'importe quel
+PC, sans rien installer, et fournit au mode PXE (§17) les fichiers qu'il distribuera.
+
+- **Base : Debian 13**, la version stable. Son système live charge le système par HTTP depuis
+  le réseau, ce que le PXE exigera ; son noyau et son chargeur signés démarrent avec Secure Boot
+  actif. Le paquet `.deb` s'y installe sans modification.
+- **Une ISO hybride**, BIOS et UEFI, qu'on écrit sur une clé avec l'outil habituel (Rufus,
+  Balena Etcher, `dd`) ou qu'on grave. La même construction produit le noyau, l'initrd et le
+  système compressé qui servent au démarrage réseau.
+- **Au démarrage**, un menu de quelques secondes propose le clavier : Français (Canada), par
+  défaut, Canadien multilingue, Anglais (États-Unis). Puis la machine s'ouvre directement sur
+  l'accueil de CloneGator en mode libre, sans connexion ni mot de passe. Le réseau se configure
+  par DHCP.
+- **Quitter** propose d'éteindre, de redémarrer ou d'ouvrir une console root pour dépanner.
+- **Pas de SSH** : le live démarre sur n'importe quel réseau, en root sans mot de passe.
+- **Rien n'est conservé d'un démarrage à l'autre** : journaux et réglages vivent en mémoire. Les
+  sauvegardes, elles, vont sur un disque USB ou un partage réseau, avec leur journal dans le
+  dossier de l'image. Le rapport d'une opération reste à l'écran jusqu'à ce qu'on le lise.
+- **Mode station** disponible ; la question du lancement automatique n'y est pas posée, elle
+  n'a de sens que sur un système installé (§17.3).
 
 ---
 

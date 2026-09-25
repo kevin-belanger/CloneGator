@@ -1,6 +1,6 @@
 # CloneGator — Plan de développement
 
-Compagnon de [ANALYSE-FONCTIONNELLE.md](ANALYSE-FONCTIONNELLE.md), révision 1.0.
+Compagnon de [ANALYSE-FONCTIONNELLE.md](ANALYSE-FONCTIONNELLE.md), révision 1.1.
 Les renvois `§n` pointent vers l'analyse.
 
 | Rév. | Date | Auteur | Changement |
@@ -15,6 +15,7 @@ Les renvois `§n` pointent vers l'analyse.
 | 0.8 | 2026-09-25 | Kevin + Claude | Analyse 0.5 : interface arrêtée, partage réseau Windows dans le MVP. La phase 4 porte l'interface du §9, les modes, le partage réseau et le lancement automatique du mode station |
 | 0.9 | 2026-09-25 | Kevin + Claude | Phase 4 terminée sur la station A, essais avec un disque USB compris (montage, FAT32, cible). Restent un redémarrage réel en lancement automatique et un disque réellement usé pour SMART. Enseignements : réserve d'écriture commune, retrait à chaud, partage réseau lent, unité systemd |
 | 1.0 | 2026-09-25 | Kevin + Claude | Phase 5 terminée : paquet .deb publié en release GitHub, installé et éprouvé sur une machine neuve. MVP livré |
+| 1.1 | 2026-09-25 | Kevin + Claude | Analyse 0.8 : phase 6, le CloneGator live, première étape vers le mode PXE (§17) |
 
 ---
 
@@ -414,13 +415,37 @@ branchée, et mène une opération entre le partage réseau et un disque USB. Ke
 suffisante : **phase 5 terminée, MVP livré.** Lancé sans root, CloneGator le dit désormais en
 une phrase au lieu d'une trace Python.
 
+### Phase 6 — CloneGator live · taille M
+
+Dans le même dépôt : le live est construit à partir du paquet, il en suit la version, et il
+peut demander des ajustements au logiciel.
+
+- `outils/construire-live.sh` : `mmdebstrap` fabrique un Debian 13 minimal, y installe le
+  `.deb` de `dist/`, et produit dans `dist/` l'ISO hybride et les trois fichiers du démarrage
+  réseau (noyau, initrd, système compressé). Le `live-build` des dépôts Ubuntu est trop ancien
+  pour Debian 13.
+- menu de démarrage (GRUB en UEFI, ISOLINUX ou GRUB en BIOS) : les trois claviers, le
+  premier par défaut après quelques secondes
+- CloneGator ouvert d'office sur tty1, en root
+- côté logiciel : savoir qu'on tourne en live, pour « Quitter » (éteindre, redémarrer,
+  console) et pour ne pas poser la question du lancement automatique en mode station. Vérifier
+  que la clé de démarrage, en lecture seule, n'est pas proposée comme stockage
+- publier l'ISO dans la même release que le `.deb`, et la montrer sur la page Télécharger
+
+**Essais** : QEMU sur la station A, en BIOS et en UEFI avec Secure Boot, pour itérer ; puis une
+vraie clé sur de vraies machines.
+
+**Fini quand** : l'ISO, écrite sur une clé, démarre en BIOS et en UEFI Secure Boot sur de
+vraies machines, s'ouvre sur CloneGator avec le bon clavier, et y mène un clonage dont la cible
+démarre, ainsi qu'une sauvegarde vers un partage réseau.
+
 ---
 
 ## 4. Chemin critique
 
 ```
 Phase 0 ──┬── Phase 1 ── Phase 2 ── Phase 3 ──┐
-          │                                   ├── Phase 5
+          │                                   ├── Phase 5 ── Phase 6 ── (mode PXE, §17)
           └── Phase 4 ───────────────────────┘
 ```
 
