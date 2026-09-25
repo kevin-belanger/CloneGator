@@ -36,18 +36,27 @@ AIDE_FORMULAIRE = "Tapez le texte    Entrée : champ suivant, puis valider    É
 AIDE_LIRE = "↑↓ : faire défiler    Entrée : revenir"
 
 
+class ArretDemande(Exception):
+    """Le système demande à CloneGator de s'arrêter : extinction de la
+    machine, terminal perdu (SIGTERM, SIGHUP)."""
+
+
 class Application:
     def __init__(self, ecran):
         self.ecran = ecran
         self.reglages = config.lire()
+        self.arret_demande = False
 
     # -------------------------------------------------------------- accueil ---
 
     def lancer(self) -> None:
-        if self.reglages.mode == config.MODE_STATION and self.reglages.station:
-            if not self.station():
-                return
-        self.accueil()
+        try:
+            if self.reglages.mode == config.MODE_STATION and self.reglages.station:
+                if not self.station():
+                    return
+            self.accueil()
+        except ArretDemande:
+            pass  # une opération éventuelle a déjà été interrompue et rapportée
 
     def accueil(self) -> None:
         while True:
@@ -393,7 +402,7 @@ class Application:
                                     f"{texte.taille(disque.taille):>9}", disque,
                                     actif=not motif, motif=motif, detail=texte.contenu(disque),
                                     forcable=smart,
-                                    motif_force="⚠ SMART défaillant, choisi quand même" if smart else ""))
+                                    motif_force="! SMART défaillant, choisi quand même" if smart else ""))
         liste = Liste("", elements, multiple=True,
                       explication="Tout le contenu des disques cochés sera effacé.")
         aide = AIDE_COCHER
@@ -510,7 +519,7 @@ class Application:
                   Ligne.de(f"Nom     {nom}"), Ligne.de("")]
         lignes += plan.lignes(DEBIT_LECTURE)
         if stockage.libre is not None and stockage.libre < plan.volume:
-            lignes.append(Ligne.de("⚠ Espace libre inférieur au volume à lire : la compression le "
+            lignes.append(Ligne.de("! Espace libre inférieur au volume à lire : la compression le "
                                    "réduit souvent assez, sans garantie (§7.5).", AVERTISSEMENT))
         return self.ecran.confirmer(
             self._page("Sauvegarder — confirmation", lignes,
@@ -545,6 +554,8 @@ class Application:
             self._executer(operation, lambda: suivi.page(titre))
             lignes = _rapport_clonage(operation, j, titre)
             j.ecrire_rapport("\n".join(l.texte() for l in lignes))
+        if self.arret_demande:
+            raise ArretDemande()
         self.ecran.afficher(self._page(f"{titre} — rapport", aide="Entrée : revenir"), lignes)
 
     def _executer_sauvegarde(self, source, stockage, nom, plan) -> None:
@@ -554,6 +565,8 @@ class Application:
             self._executer(operation, lambda: suivi.page("Sauvegarde"))
             lignes = _rapport_sauvegarde(operation, j, stockage)
             j.ecrire_rapport("\n".join(l.texte() for l in lignes))
+        if self.arret_demande:
+            raise ArretDemande()
         self.ecran.afficher(self._page("Sauvegarde — rapport", aide="Entrée : revenir"), lignes)
 
     def _executer(self, operation, construire) -> None:
@@ -567,7 +580,13 @@ class Application:
 
         fil = threading.Thread(target=tourner, name="operation")
         fil.start()
-        self.ecran.suivre(construire, fil.is_alive, operation.arreter)
+        try:
+            self.ecran.suivre(construire, fil.is_alive, operation.arreter)
+        except ArretDemande:
+            # §13 : une coupure arrête proprement les écritures ; les cibles
+            # sont déclarées interrompues, et le rapport est quand même écrit.
+            self.arret_demande = True
+            operation.arreter()
         fil.join()
 
     # ---------------------------------------------------------------- outils ---
@@ -604,7 +623,7 @@ class _Plan:
             self.volume += volume
             if choix.avertissement:
                 self.notes.append(Ligne.de(
-                    f"⚠ partition {entree.numero} : {choix.raison} — {texte.taille(volume)}, "
+                    f"! partition {entree.numero} : {choix.raison} — {texte.taille(volume)}, "
                     f"environ {texte.duree(volume / DEBIT_LECTURE)} à elle seule", AVERTISSEMENT))
 
     def lignes(self, debit: float) -> list[Ligne]:
@@ -720,7 +739,7 @@ def _rapport_clonage(operation: clone.Clonage, j: Journal, titre: str) -> list[L
                              (cible.etat.upper(), style),
                              ((f" — {cible.motif}" if cible.motif else ""), NORMAL)]))
         for avertissement in cible.avertissements:
-            lignes.append(Ligne.de(f"      ⚠ {avertissement}", AVERTISSEMENT))
+            lignes.append(Ligne.de(f"      ! {avertissement}", AVERTISSEMENT))
     lignes += [Ligne.de(""), Ligne.de(f"Journal : {j.dossier}", AIDE)]
     return lignes
 
@@ -740,7 +759,7 @@ def _rapport_sauvegarde(operation: backup.Sauvegarde, j: Journal, stockage) -> l
         lignes.append(Ligne.de(f"Motif : {operation.motif}", ECHEC))
         lignes.append(Ligne.de("Le dossier reste incomplet : il ne sera jamais proposé à la restauration.", AIDE))
     for avertissement in operation.avertissements:
-        lignes.append(Ligne.de(f"⚠ {avertissement}", AVERTISSEMENT))
+        lignes.append(Ligne.de(f"! {avertissement}", AVERTISSEMENT))
     lignes += [Ligne.de(""), Ligne.de(f"Journal : {j.dossier}", AIDE)]
     return lignes
 
@@ -757,6 +776,7 @@ def demarrer() -> int:
     import curses
     import locale
     import os
+    import signal
 
     from .. import verrou
     from .ecran import Ecran
@@ -768,12 +788,21 @@ def demarrer() -> int:
     locale.setlocale(locale.LC_ALL, "")
     os.environ.setdefault("ESCDELAY", "25")  # Échap répond tout de suite
 
+    def arreter(_signal, _cadre):
+        raise ArretDemande()
+
+    # Extinction de la machine, terminal perdu : arrêt propre, jamais brutal.
+    signal.signal(signal.SIGTERM, arreter)
+    signal.signal(signal.SIGHUP, arreter)
+
     def principal(fenetre):
         curses.raw()  # Ctrl-C devient une touche : l'interface ne meurt pas en pleine copie
         Application(Ecran(fenetre)).lancer()
 
     try:
         curses.wrapper(principal)
+    except ArretDemande:
+        pass  # demandé hors d'une page : rien à interrompre
     finally:
         tenu.close()
     return 0

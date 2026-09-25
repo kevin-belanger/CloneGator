@@ -29,7 +29,9 @@ def _contenu() -> str:
     dossier = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     return f"""[Unit]
 Description=CloneGator en mode station, sur la console
-After=systemd-user-sessions.service
+# Démarrer après l'arrêt de l'invite de connexion : sa session, en se fermant,
+# raccrocherait sinon le terminal sous le nez de CloneGator (SIGHUP).
+After=systemd-user-sessions.service {GETTY}
 Conflicts={GETTY}
 
 [Service]

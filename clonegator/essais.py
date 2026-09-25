@@ -245,7 +245,7 @@ def sauvegarder(etiquette: str, source_nom: str, brut: bool, serie_stockage: str
         print(f"Verdict : {sauvegarde.etat.upper()}"
               + (f" — {sauvegarde.motif}" if sauvegarde.motif else ""))
         for avertissement in sauvegarde.avertissements:
-            print(f"  ⚠ {avertissement}")
+            print(f"  ! {avertissement}")
         if sauvegarde.etat == backup.REUSSIE:
             print(f"Sauvegarde : {sauvegarde.dossier} "
                   f"({_taille(image.lire(sauvegarde.dossier).taille_sur_disque)})")
@@ -378,7 +378,7 @@ def _rapport(clonage, journal) -> int:
         print(f"{cible.nom:<8} {cible.disque.serie:<18} {cible.etat.upper()}"
               + (f" — {cible.motif}" if cible.motif else ""))
         for avertissement in cible.avertissements:
-            print(f"{'':<27}  ⚠ {avertissement}")
+            print(f"{'':<27}  ! {avertissement}")
     print()
     print(f"Journal : {journal.dossier}")
     return 0 if all(c.etat == clone.REUSSIE for c in clonage.cibles) else 2
