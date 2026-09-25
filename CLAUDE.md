@@ -89,7 +89,7 @@ réglages : `/etc/clonegator/clonegator.json`. Un seul CloneGator à la fois
 
 Phase 5 terminée, MVP livré. `./outils/construire-paquet.sh` construit le
 `.deb` dans `dist/` (dépôt commité exigé). Publier : étiquette
-`v<version>` (`~` → `-`, `+` → `.`), `gh release create`, et joindre aussi une
+`v<version>` (`~` → `-`, `+` → `.`), `gh release create --target <commit complet>` (l'abrégé est refusé), et joindre aussi une
 copie nommée `clonegator.deb` pour l'adresse courte
 `github.com/kevin-belanger/CloneGator/releases/latest/download/clonegator.deb`.
 
