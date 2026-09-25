@@ -124,11 +124,16 @@ def fermer(stockage: Stockage) -> None:
 
 def _candidat(disque: Disque) -> Stockage | None:
     nom = f"{disque.libelle} {disque.description}"
+    montages = devices.montages(disque.chemin)
     montes = []
-    for racine, fstype in devices.montages(disque.chemin):
+    for racine, fstype in montages:
+        if fstype not in _ECRIVABLES | _FAT:
+            continue  # un CD, ou la clé du live : on n'y écrit pas
         libre = _libre(racine)
         if libre is not None:
             montes.append(Stockage(nom, fstype, racine=racine, libre=libre, disque=disque))
+    if montages and not montes:
+        return None
     if montes:
         utilisables = [s for s in montes if s.fstype not in _FAT]
         if utilisables:
