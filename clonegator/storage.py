@@ -38,7 +38,9 @@ class Stockage:
 def candidats() -> list[Stockage]:
     """Un candidat par disque USB portant au moins un système de fichiers monté."""
     resultats = []
-    for disque in devices.stockages(devices.inventaire()):
+    for disque in devices.inventaire():
+        if not devices.peut_stocker(disque):
+            continue
         montes = []
         for racine, fstype in devices.montages(disque.chemin):
             try:

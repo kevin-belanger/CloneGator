@@ -66,8 +66,7 @@ class SourceDisque:
 
     @property
     def description(self) -> str:
-        emplacement = f"port {self.disque.port}" if self.disque.port is not None else self.disque.chemin
-        return f"{emplacement} ({self.disque.chemin}), {self.disque.description}, s/n {self.disque.serie}"
+        return f"{self.disque.libelle}, {self.disque.description}, s/n {self.disque.serie}"
 
     @property
     def secteur(self) -> int:
@@ -78,6 +77,9 @@ class SourceDisque:
         return self.disque.taille if self.brut else self.table.taille_requise
 
     def preparer(self) -> None:
+        refus = devices.refus_comme_source(self.disque)
+        if refus:
+            raise ErreurSource(f"{self.disque.libelle} : {refus}")
         if not devices.proteger(self.disque):
             raise ErreurSource("le disque source n'a pas pu être mis en lecture seule")
         self._protege = True

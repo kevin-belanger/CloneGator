@@ -162,8 +162,7 @@ class Sauvegarde:
                 "modele": self.disque.description,
                 "serie": self.disque.serie,
                 "taille": self.disque.taille,
-                "emplacement": (f"port {self.disque.port}" if self.disque.port is not None
-                                else self.disque.chemin),
+                "emplacement": self.disque.libelle,
             },
             "secteur": self.source.secteur,
             "taille_requise": taille_requise,

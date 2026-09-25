@@ -65,8 +65,8 @@ class Cible:
 
     @property
     def nom(self) -> str:
-        if self.disque.port is not None:
-            return f"port {self.disque.port}"
+        if self.disque.emplacement is not None:
+            return self.disque.emplacement.nom
         return self.disque.chemin
 
     @property
@@ -230,10 +230,9 @@ class Clonage:
             elif disque.secteur_logique != self.source.secteur:
                 motif = (f"secteurs de {disque.secteur_logique} octets, "
                          f"la source en a de {self.source.secteur}")
-            elif disque.montee:
-                motif = "une de ses partitions est montée ou sert de swap"
             else:
-                motif = _essai_ouverture(disque.chemin)
+                # Les filets de P2 se décident dans devices, et seulement là.
+                motif = devices.refus_comme_cible(disque) or _essai_ouverture(disque.chemin)
 
             if motif:
                 cible.conclure(ECARTEE, motif)
@@ -471,12 +470,12 @@ class _Interruption(Exception):
 
 
 def _essai_ouverture(chemin: str) -> str:
-    """Refus nommé si la cible ne peut pas être ouverte en écriture exclusive."""
+    """Le test d'ouverture du §6.5 : un disque protégé en écriture, par exemple."""
     try:
         fd = sysexec.ouvrir(chemin, ecriture=True)
     except OSError as erreur:
         if erreur.errno == errno.EBUSY:
-            return "occupée par le système (montée, en swap ou utilisée par un autre programme)"
+            return devices.REFUS_SYSTEME
         return f"ouverture en écriture impossible : {erreur.strerror}"
     os.close(fd)
     return ""

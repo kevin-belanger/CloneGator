@@ -1,8 +1,9 @@
 """Point d'entrée en ligne de commande.
 
-L'interface curses viendra en phase 4. D'ici là, ces sous-commandes servent au
-développement et aux essais : elles montrent ce que le logiciel comprend du
-matériel, sans rien écrire nulle part.
+Les sous-commandes servent au développement et aux essais, en attendant
+l'interface curses : `inventaire` et `disques` montrent ce que le logiciel
+comprend du matériel sans rien écrire ; les autres lancent les vraies
+opérations, sur des disques désignés par leur emplacement.
 """
 
 from __future__ import annotations
@@ -12,13 +13,6 @@ import logging
 import sys
 
 from . import VERSION, devices, essais
-
-_ETIQUETTES = {
-    devices.ROLE_SOURCE: "SOURCE",
-    devices.ROLE_CIBLE: "CIBLE",
-    devices.ROLE_STOCKAGE: "STOCKAGE",
-    devices.ROLE_IGNORE: "ignoré",
-}
 
 
 def taille_lisible(octets: int | None) -> str:
@@ -52,78 +46,41 @@ def _resume_contenu(disque: devices.Disque) -> str:
     if disque.utilise is not None:
         morceaux.append(f"{taille_lisible(disque.utilise)} utilisés")
 
-    if disque.montee:
-        morceaux.append("MONTÉ")
-
     return ", ".join(morceaux)
 
 
 def cmd_inventaire(_args) -> int:
+    """Les emplacements de la machine, baies vides comprises, et ce que chaque
+    disque peut devenir."""
     disques = devices.inventaire()
-    if not disques:
-        print("Aucun disque détecté. lsblk est-il disponible ?", file=sys.stderr)
-        return 1
-
-    par_port = {
-        disque.port: disque
-        for disque in disques
-        if disque.clonable and disque.port is not None
-    }
+    par_cle = {d.emplacement.cle: d for d in disques if d.emplacement}
 
     print(f"CloneGator {VERSION} — inventaire")
     print()
 
-    ports = devices.ports_ata()
-    if ports:
-        for port in ports:
-            role = (
-                _ETIQUETTES[devices.ROLE_SOURCE]
-                if port == devices.PORT_SOURCE
-                else _ETIQUETTES[devices.ROLE_CIBLE]
-            )
-            disque = par_port.get(port)
-            if disque:
-                detail = (
-                    f"{disque.description:<26} {taille_lisible(disque.taille):>10}"
-                    f"  {_resume_contenu(disque)}"
-                )
-            else:
-                detail = f"{'(vide)':<26}"
-            print(f"  Port {port:<3} {role:<9} {detail}")
-    else:
-        print("  Aucun port ATA exposé par le noyau (machine sans contrôleur SATA ?)")
+    lignes = [(e, par_cle.get(e.cle)) for e in devices.emplacements_sata()]
+    deja = {e.cle for e, _ in lignes}
+    lignes += [(d.emplacement, d) for d in disques
+               if d.emplacement and d.emplacement.cle not in deja]
 
-    print()
-    for disque in devices.stockages(disques):
-        detail = (
-            f"{disque.description:<26} {taille_lisible(disque.taille):>10}"
-            f"  {_resume_contenu(disque)}"
-        )
-        print(f"  {'USB':<8} {_ETIQUETTES[devices.ROLE_STOCKAGE]:<9} {detail}")
-
-    ignores = devices.par_role(disques, devices.ROLE_IGNORE)
-    if ignores:
-        print()
-        print("  Hors périmètre :")
-        for disque in ignores:
-            print(
-                f"    {disque.chemin:<16} bus {disque.bus:<8}"
-                f" {taille_lisible(disque.taille):>10}"
-            )
-
+    for emplacement, disque in lignes:
+        if disque is None:
+            print(f"  {emplacement.nom:<14} (vide)")
+            continue
+        refus = devices.refus_comme_cible(disque)
+        print(f"  {disque.libelle:<14} {disque.description:<22} {taille_lisible(disque.taille):>10}"
+              f"  {_resume_contenu(disque):<34} {refus or 'disponible'}")
     return 0
 
 
 def cmd_disques(_args) -> int:
     """Vue brute, une ligne par disque, pratique pour vérifier un branchement."""
     for disque in devices.inventaire():
-        port = f"port {disque.port}" if disque.port is not None else "—"
+        cle = disque.emplacement.cle if disque.emplacement else "—"
         print(
-            f"{disque.chemin:<14} {disque.bus:<8} {port:<8}"
-            f" {disque.role:<9} {taille_lisible(disque.taille):>10}"
-            f"  secteur {disque.secteur_logique}"
-            f"  {disque.description}"
-            f"  s/n {disque.serie or '?'}"
+            f"{disque.libelle:<14} {disque.bus:<5} {cle:<24}"
+            f" {taille_lisible(disque.taille):>10}  secteur {disque.secteur_logique}"
+            f"  {disque.description}  s/n {disque.serie or '?'}"
         )
         for partition in disque.partitions:
             montage = f" montée sur {partition.point_montage}" if partition.montee else ""
@@ -136,15 +93,12 @@ def cmd_disques(_args) -> int:
 
 
 def cmd_essai_diffusion(args) -> int:
-    return essais.essai_diffusion(
-        volume=int(args.volume * essais.Gio),
-        ports=args.ports,
-        delai_blocage=args.delai,
-    )
+    return essais.essai_diffusion(int(args.volume * essais.Gio), args.source, args.cibles,
+                                  args.delai)
 
 
 def cmd_cloner(args) -> int:
-    return essais.cloner(ports=args.ports, delai_blocage=args.delai)
+    return essais.cloner(args.source, args.cibles, args.delai)
 
 
 def cmd_images(_args) -> int:
@@ -152,11 +106,11 @@ def cmd_images(_args) -> int:
 
 
 def cmd_sauvegarder(args) -> int:
-    return essais.sauvegarder(args.etiquette, args.brut, args.stockage, args.delai)
+    return essais.sauvegarder(args.nom, args.source, args.brut, args.stockage, args.delai)
 
 
 def cmd_restaurer(args) -> int:
-    return essais.restaurer(args.image, args.ports, args.sans_verification, args.delai)
+    return essais.restaurer(args.sauvegarde, args.cibles, args.sans_verification, args.delai)
 
 
 def cmd_version(_args) -> int:
@@ -167,7 +121,7 @@ def cmd_version(_args) -> int:
 def construire_analyseur() -> argparse.ArgumentParser:
     analyseur = argparse.ArgumentParser(
         prog="clonegator",
-        description="Station de duplication et de sauvegarde de disques.",
+        description="Duplication et sauvegarde de disques.",
     )
     analyseur.add_argument(
         "-v", "--verbeux",
@@ -178,60 +132,57 @@ def construire_analyseur() -> argparse.ArgumentParser:
     sous = analyseur.add_subparsers(dest="commande", required=True)
 
     sous.add_parser(
-        "inventaire", help="affiche le tableau des ports"
+        "inventaire", help="les emplacements et ce que chaque disque peut devenir"
     ).set_defaults(fonction=cmd_inventaire)
 
     sous.add_parser(
         "disques", help="vue brute, une ligne par disque et par partition"
     ).set_defaults(fonction=cmd_disques)
 
+    def delai(commande):
+        commande.add_argument("--delai", type=float, default=60,
+                              help="délai de blocage en secondes (défaut : 60)")
+
     essai = sous.add_parser(
         "essai-diffusion",
-        help="diffuse le début du port 1 vers les cibles et vérifie (ÉCRASE LES CIBLES)",
+        help="diffuse le début de la source vers les cibles et vérifie (ÉCRASE LES CIBLES)",
     )
+    essai.add_argument("--source", required=True, help="emplacement, ex. SATA1")
+    essai.add_argument("--cibles", required=True, nargs="+", help="emplacements, ex. SATA2 SATA3")
     essai.add_argument("--volume", type=float, default=8, help="en Gio (défaut : 8)")
-    essai.add_argument(
-        "--ports", type=int, nargs="+", help="ports cibles (défaut : toutes les cibles)"
-    )
-    essai.add_argument(
-        "--delai", type=float, default=60, help="délai de blocage en secondes (défaut : 60)"
-    )
+    delai(essai)
     essai.set_defaults(fonction=cmd_essai_diffusion)
 
-    cloner = sous.add_parser(
-        "cloner", help="clone le port 1 vers les cibles (ÉCRASE LES CIBLES)"
-    )
-    cloner.add_argument(
-        "--ports", type=int, nargs="+", help="ports cibles (défaut : toutes les cibles)"
-    )
-    cloner.add_argument(
-        "--delai", type=float, default=60, help="délai de blocage en secondes (défaut : 60)"
-    )
+    cloner = sous.add_parser("cloner", help="clone un disque vers d'autres (ÉCRASE LES CIBLES)")
+    cloner.add_argument("--source", required=True, help="emplacement, ex. SATA1")
+    cloner.add_argument("--cibles", required=True, nargs="+", help="emplacements, ex. SATA2 SATA3")
+    delai(cloner)
     cloner.set_defaults(fonction=cmd_cloner)
 
     sous.add_parser(
-        "images", help="liste les disques de stockage et leurs images"
+        "images", help="les disques de sauvegardes et leurs sauvegardes"
     ).set_defaults(fonction=cmd_images)
 
-    sauvegarde = sous.add_parser(
-        "sauvegarder", help="sauvegarde le port 1 vers une image sur le disque USB"
-    )
-    sauvegarde.add_argument("etiquette", help="nom court de l'image, ex. Win11-labo")
+    sauvegarde = sous.add_parser("sauvegarder", help="sauvegarde un disque vers le disque USB")
+    sauvegarde.add_argument("nom", help="nom de la sauvegarde, ex. Win11-labo")
+    sauvegarde.add_argument("--source", required=True, help="emplacement, ex. SATA1")
     sauvegarde.add_argument("--brut", action="store_true",
                             help="copie brute intégrale du disque (lent, §6.3)")
-    sauvegarde.add_argument("--stockage", help="numéro de série du disque d'images, s'il y en a plusieurs")
-    sauvegarde.add_argument("--delai", type=float, default=60, help="délai de blocage en secondes")
+    sauvegarde.add_argument("--stockage",
+                            help="numéro de série du disque de sauvegardes, s'il y en a plusieurs")
+    delai(sauvegarde)
     sauvegarde.set_defaults(fonction=cmd_sauvegarder)
 
     restauration = sous.add_parser(
-        "restaurer", help="restaure une image vers les cibles (ÉCRASE LES CIBLES)"
+        "restaurer", help="restaure une sauvegarde vers des disques (ÉCRASE LES CIBLES)"
     )
-    restauration.add_argument("image", help="nom du dossier de l'image (voir « images »)")
-    restauration.add_argument("--ports", type=int, nargs="+",
-                              help="ports cibles (défaut : toutes les cibles)")
+    restauration.add_argument("sauvegarde",
+                              help="nom du dossier de la sauvegarde (voir « images »)")
+    restauration.add_argument("--cibles", required=True, nargs="+",
+                              help="emplacements, ex. SATA2 SATA3")
     restauration.add_argument("--sans-verification", action="store_true",
-                              help="image brute seulement : ne pas relire les empreintes")
-    restauration.add_argument("--delai", type=float, default=60, help="délai de blocage en secondes")
+                              help="sauvegarde brute seulement : ne pas relire les empreintes")
+    delai(restauration)
     restauration.set_defaults(fonction=cmd_restaurer)
 
     sous.add_parser(

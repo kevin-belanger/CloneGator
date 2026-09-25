@@ -1,15 +1,19 @@
-"""Essais sur les vraies baies, pour le développement.
+"""Sous-commandes de développement, en attendant l'interface de la phase 4.
+
+Les disques y sont désignés par leur emplacement — `SATA1`, `USB2` — et passent
+par les mêmes règles que dans l'interface (`devices`) : un disque utilisé par le
+système n'est ni source ni cible, un disque de sauvegardes n'est jamais cible.
 
 `essai-diffusion` éprouve le moteur de la phase 1 sur le matériel : le début
-brut du disque du port 1 est diffusé vers les cibles, puis chaque cible est
-relue depuis le disque et comparée à la source. **Les cibles sont écrasées.**
+brut de la source est diffusé vers les cibles, puis chaque cible est relue
+depuis le disque et comparée à la source. **Les cibles sont écrasées.**
 
 Ce n'est pas un clonage : aucune table de partitions n'est interprétée, on
 mesure seulement que N disques reçoivent exactement ce qu'on a lu une fois, et
 à quel débit.
 
-`cloner` lance un vrai clonage du port 1 vers les cibles, avec un affichage
-texte, en attendant l'interface curses de la phase 4.
+`cloner`, `sauvegarder` et `restaurer` lancent les vraies opérations, avec un
+affichage texte.
 """
 
 from __future__ import annotations
@@ -26,35 +30,25 @@ from .journal import Journal
 Gio = 1024 * fanout.Mio
 
 
-def essai_diffusion(volume: int, ports: list[int] | None, delai_blocage: float) -> int:
-    disques = devices.inventaire()
-    source = devices.source(disques)
-    if source is None:
-        print("Aucun disque dans le port 1.")
+def essai_diffusion(volume: int, source_nom: str, cibles_noms: list[str],
+                    delai_blocage: float) -> int:
+    choix = _resoudre(source_nom, cibles_noms)
+    if choix is None:
         return 1
-
-    cibles = [
-        disque for disque in devices.cibles(disques)
-        if ports is None or disque.port in ports
-    ]
-    if not cibles:
-        print("Aucune cible retenue.")
-        return 1
+    source, cibles = choix
 
     trop_petits = [d for d in [source, *cibles] if d.taille < volume]
     if trop_petits:
         print("Volume supérieur à la taille de : "
-              + ", ".join(f"port {d.port}" for d in trop_petits))
+              + ", ".join(d.libelle for d in trop_petits))
         return 1
 
-    print(f"Source  port {source.port}  {source.description}  s/n {source.serie}")
-    for cible in cibles:
-        print(f"Cible   port {cible.port}  {cible.description}  s/n {cible.serie}")
+    _annoncer(source, cibles)
     print(f"Volume  {_taille(volume)}, délai de blocage {delai_blocage:.0f} s")
     print()
 
     if not devices.proteger(source):
-        print("Impossible de passer le port 1 en lecture seule : abandon.")
+        print("Impossible de passer la source en lecture seule : abandon.")
         return 1
 
     try:
@@ -84,7 +78,7 @@ def essai_diffusion(volume: int, ports: list[int] | None, delai_blocage: float) 
             relecture = "DIFFÉRENTE DE LA SOURCE"
         else:
             relecture = cible.motif
-        print(f"port {disque.port:<3} {cible.etat:<12} {_taille(cible.octets):>10}"
+        print(f"{cible.nom:<8} {cible.etat:<12} {_taille(cible.octets):>10}"
               f" {_debit(cible.debit):>11}  {relecture}")
 
     print()
@@ -103,7 +97,8 @@ def _diffuser(source, cibles, volume, delai_blocage):
 
         diffusion = fanout.Diffusion(
             fd_source,
-            [fanout.Destination(f"port {c.port}", fd) for c, fd in zip(cibles, fds)],
+            [fanout.Destination(c.emplacement.nom if c.emplacement else c.chemin, fd)
+             for c, fd in zip(cibles, fds)],
             limite=volume,
             delai_blocage=delai_blocage,
             empreinte=True,
@@ -186,23 +181,14 @@ def _debit(octets_par_seconde: float) -> str:
     return f"{octets_par_seconde / 1e6:.0f} Mo/s"
 
 
-def cloner(ports: list[int] | None, delai_blocage: float) -> int:
-    """Clone le port 1 vers les cibles, en attendant l'interface de la phase 4.
-
-    Source et cibles sont prises par leur rôle actuel, jamais par leur chemin.
-    """
-    disques = devices.inventaire()
-    source = devices.source(disques)
-    if source is None:
-        print("Aucun disque dans le port 1.")
+def cloner(source_nom: str, cibles_noms: list[str], delai_blocage: float) -> int:
+    """Clone un disque vers d'autres, désignés par leur emplacement."""
+    choix = _resoudre(source_nom, cibles_noms)
+    if choix is None:
         return 1
-    cibles = _cibles(disques, ports)
-    if not cibles:
-        return 1
-
-    print(f"Source  port {source.port}  {source.description}  {_taille(source.taille)}"
-          f"  s/n {source.serie}")
-    _annoncer_cibles(cibles)
+    source, cibles = choix
+    _annoncer(source, cibles)
+    print()
 
     with Journal("clonage") as journal:
         clonage = clone.Clonage(source, cibles, journal, delai_blocage=delai_blocage)
@@ -211,20 +197,20 @@ def cloner(ports: list[int] | None, delai_blocage: float) -> int:
 
 
 def images() -> int:
-    """Les disques d'images, et les images complètes de chacun."""
+    """Les disques de sauvegardes, et les sauvegardes complètes de chacun."""
     candidats = storage.candidats()
     if not candidats:
-        print("Aucun disque USB de stockage monté.")
+        print("Aucun disque USB de sauvegardes monté.")
         return 1
     for candidat in candidats:
-        print(f"{candidat.disque.description}  ({candidat.disque.chemin}, {candidat.racine}, "
+        print(f"{candidat.disque.libelle}  {candidat.disque.description}  ({candidat.racine}, "
               f"{candidat.fstype})  {_taille(candidat.libre)} libres")
         if candidat.refus:
             print(f"  refusé : {candidat.refus}")
             continue
         trouvees = image.lister(candidat.racine)
         if not trouvees:
-            print("  aucune image")
+            print("  aucune sauvegarde")
         for img in trouvees:
             origine = img.origine
             print(f"  {img.nom:<40} {img.mode:<5} {_taille(img.taille_sur_disque):>11}"
@@ -232,20 +218,20 @@ def images() -> int:
     return 0
 
 
-def sauvegarder(etiquette: str, brut: bool, serie_stockage: str | None,
+def sauvegarder(etiquette: str, source_nom: str, brut: bool, serie_stockage: str | None,
                 delai_blocage: float) -> int:
-    """Sauvegarde le disque du port 1 vers une image sur le disque USB."""
-    source = devices.source(devices.inventaire())
-    if source is None:
-        print("Aucun disque dans le port 1.")
+    """Sauvegarde un disque vers le disque USB de sauvegardes."""
+    choix = _resoudre(source_nom, [])
+    if choix is None:
         return 1
+    source, _ = choix
     destination = _stockage(serie_stockage)
     if destination is None:
         return 1
 
-    print(f"Source   port {source.port}  {source.description}  {_taille(source.taille)}"
+    print(f"Source   {source.libelle}  {source.description}  {_taille(source.taille)}"
           f"  s/n {source.serie}")
-    print(f"Images   {destination.disque.description} ({destination.racine}), "
+    print(f"Destination  {destination.disque.libelle} ({destination.racine}), "
           f"{_taille(destination.libre)} libres")
     print(f"Mode     {'brut intégral — LENT' if brut else 'automatique'}")
     print()
@@ -261,33 +247,36 @@ def sauvegarder(etiquette: str, brut: bool, serie_stockage: str | None,
         for avertissement in sauvegarde.avertissements:
             print(f"  ⚠ {avertissement}")
         if sauvegarde.etat == backup.REUSSIE:
-            print(f"Image : {sauvegarde.dossier} ({_taille(image.lire(sauvegarde.dossier).taille_sur_disque)})")
+            print(f"Sauvegarde : {sauvegarde.dossier} "
+                  f"({_taille(image.lire(sauvegarde.dossier).taille_sur_disque)})")
         else:
             print(f"Dossier laissé incomplet, jamais proposé à la restauration : {sauvegarde.dossier}")
         print(f"Journal : {journal.dossier}")
     return 0 if sauvegarde.etat == backup.REUSSIE else 2
 
 
-def restaurer(nom: str, ports: list[int] | None, sans_verification: bool,
+def restaurer(nom: str, cibles_noms: list[str], sans_verification: bool,
               delai_blocage: float) -> int:
-    """Restaure une image du disque USB vers les cibles."""
+    """Restaure une sauvegarde vers des disques désignés par leur emplacement."""
     trouvee = None
     for candidat in storage.candidats():
         if candidat.utilisable:
             trouvee = next((i for i in image.lister(candidat.racine) if i.nom == nom), trouvee)
     if trouvee is None:
-        print(f"Aucune image complète « {nom} ». La liste : python3 -m clonegator images")
+        print(f"Aucune sauvegarde complète « {nom} ». La liste : python3 -m clonegator images")
         return 1
     if sans_verification and trouvee.mode != image.MODE_BRUT:
-        print("La vérification des empreintes ne se saute que pour une image brute (§8).")
+        print("La vérification des empreintes ne se saute que pour une sauvegarde brute (§8).")
         return 1
 
-    cibles = _cibles(devices.inventaire(), ports)
-    if not cibles:
+    choix = _resoudre(None, cibles_noms)
+    if choix is None:
         return 1
-    print(f"Image   {trouvee.nom}  ({trouvee.mode}, {_taille(trouvee.taille_sur_disque)}), "
+    _, cibles = choix
+    print(f"Sauvegarde  {trouvee.nom}  ({trouvee.mode}, {_taille(trouvee.taille_sur_disque)}), "
           f"taille requise {_taille(trouvee.taille_requise)}")
-    _annoncer_cibles(cibles)
+    _annoncer(None, cibles)
+    print()
 
     with Journal("restauration") as journal:
         clonage = clone.Clonage(sources.SourceImage(trouvee, verifier=not sans_verification),
@@ -296,20 +285,53 @@ def restaurer(nom: str, ports: list[int] | None, sans_verification: bool,
         return _rapport(clonage, journal)
 
 
+def _resoudre(source_nom: str | None, cibles_noms: list[str]):
+    """Les disques désignés par leur emplacement, passés par les règles de
+    `devices`. None, avec le motif affiché, si l'un d'eux ne convient pas."""
+    disques = {d.emplacement.nom.lower(): d for d in devices.inventaire() if d.emplacement}
+    connus = ", ".join(d.libelle for d in disques.values())
+
+    def trouver(nom: str):
+        disque = disques.get(nom.lower())
+        if disque is None:
+            print(f"Aucun disque en {nom}. Disques présents : {connus}")
+        return disque
+
+    source = None
+    if source_nom is not None:
+        source = trouver(source_nom)
+        if source is None:
+            return None
+        refus = devices.refus_comme_source(source)
+        if refus:
+            print(f"{source.libelle} ne peut pas être source : {refus}.")
+            return None
+
+    cibles = []
+    for nom in cibles_noms:
+        cible = trouver(nom)
+        if cible is None:
+            return None
+        if source is not None and cible.chemin == source.chemin:
+            print(f"{cible.libelle} ne peut pas être à la fois source et cible.")
+            return None
+        refus = devices.refus_comme_cible(cible)
+        if refus:
+            print(f"{cible.libelle} ne peut pas être cible : {refus}.")
+            return None
+        cibles.append(cible)
+    return source, cibles
+
+
 # ------------------------------------------------------------- affichage ---
 
-def _cibles(disques, ports):
-    cibles = [d for d in devices.cibles(disques) if ports is None or d.port in ports]
-    if not cibles:
-        print("Aucune cible retenue.")
-    return cibles
-
-
-def _annoncer_cibles(cibles) -> None:
+def _annoncer(source, cibles) -> None:
+    if source is not None:
+        print(f"Source  {source.libelle}  {source.description}  {_taille(source.taille)}"
+              f"  s/n {source.serie}")
     for cible in cibles:
-        print(f"Cible   port {cible.port}  {cible.description}  {_taille(cible.taille)}"
+        print(f"Cible   {cible.libelle}  {cible.description}  {_taille(cible.taille)}"
               f"  s/n {cible.serie}")
-    print()
 
 
 def _stockage(serie: str | None):

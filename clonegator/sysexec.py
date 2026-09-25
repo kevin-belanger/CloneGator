@@ -12,6 +12,7 @@ Aucun autre module du projet n'appelle `subprocess` ni ne lit `/dev`, `/sys` ou
 
 from __future__ import annotations
 
+import errno
 import json
 import logging
 import os
@@ -295,6 +296,33 @@ def chemin_reel(chemin: str) -> str | None:
     except OSError as erreur:
         _log.warning("lien illisible : %s (%s)", chemin, erreur)
         return None
+
+
+def lire(chemin: str) -> str | None:
+    """Le contenu d'un petit fichier système (un attribut de /sys), sans le
+    saut de ligne final ; None s'il est illisible."""
+    try:
+        with open(chemin, encoding="utf-8") as fichier:
+            return fichier.read().strip()
+    except OSError:
+        return None
+
+
+def tenu_par_le_systeme(chemin: str) -> bool:
+    """Le noyau refuse-t-il d'ouvrir ce disque en exclusivité ?
+
+    C'est le cas d'un disque monté, en swap, membre d'un volume LVM ou RAID —
+    y compris par l'une de ses partitions. L'ouverture est faite en lecture
+    seule : elle ne déclenche aucun événement udev et n'écrit rien.
+    """
+    try:
+        fd = os.open(chemin, os.O_RDONLY | os.O_EXCL | os.O_CLOEXEC)
+    except OSError as erreur:
+        if erreur.errno == errno.EBUSY:
+            return True
+        raise
+    os.close(fd)
+    return False
 
 
 def ouvrir(chemin: str, ecriture: bool = False) -> int:
