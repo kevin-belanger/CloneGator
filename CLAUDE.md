@@ -71,24 +71,27 @@ fonctions, commentaires, messages de commit. S'y tenir.
 
 ## Où on en est
 
-Phases 1 et 2 terminées. Un disque Windows cloné vers cinq cibles démarre sur
-cinq machines ; résultats et enseignements au plan. `cloner` et
-`essai-diffusion` écrivent sur les cibles, jamais sur le port 1.
+Phases 1 à 3 terminées. Un Windows cloné, ou restauré depuis une image, démarre
+sur de vraies machines ; résultats et enseignements au plan. `cloner`,
+`restaurer` et `essai-diffusion` écrivent sur les cibles, jamais sur la source.
 
 ```bash
 python3 -m clonegator inventaire
 python3 -m clonegator disques
 python3 -m clonegator -v disques     # journalise chaque commande système
-python3 -m unittest tests.test_fanout tests.test_clone_banc
+python3 -m clonegator images                       # disques d'images et leur contenu
+python3 -m clonegator sauvegarder Win11-labo       # port 1 → image sur le disque USB
+python3 -m clonegator restaurer <dossier-image>    # ÉCRASE les cibles
 python3 -m clonegator cloner                       # ÉCRASE les cibles
 python3 -m clonegator essai-diffusion --volume 8   # ÉCRASE les cibles, relit et compare
+python3 -m unittest tests.test_layout tests.test_fanout tests.test_clone_banc tests.test_images_banc
 ```
 
-Journaux d'opération : `/var/log/clonegator/<date>_<opération>/`.
+Journaux d'opération : `/var/log/clonegator/<date>_<opération>/`. Images :
+`/CloneGator/` sur le T7.
 
-Prochaine étape : phase 3, les images — sauvegarde d'un disque vers le disque
-USB, restauration vers un ou plusieurs disques. Format arrêté au §7.2 de
-l'analyse.
+Prochaine étape : phase 4, l'interface et les modes — emplacements, mode libre
+et mode station, filets de P2, écrans curses.
 
 ## Essais
 

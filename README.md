@@ -29,21 +29,16 @@ seul endroit, [`clonegator/devices.py`](clonegator/devices.py).
 
 ## État
 
-Phase 2 terminée : le clonage direct fonctionne. Un disque Windows cloné vers
-cinq cibles démarre sur cinq machines. La source est lue une seule fois, chaque
-partition est copiée avec le moteur choisi pour elle, et chaque cible reçoit son
-propre verdict. Sauvegarde et restauration d'images : phase 3.
-
-```bash
-python3 -m clonegator cloner
-```
+Phase 3 terminée : cloner, sauvegarder vers une image et restaurer fonctionnent,
+et les disques obtenus démarrent. L'interface curses et le choix libre des
+disques viennent en phase 4 ; en attendant, des sous-commandes :
 
 ```bash
 python3 -m clonegator inventaire
-```
-
-```bash
-python3 -m clonegator disques
+python3 -m clonegator cloner
+python3 -m clonegator sauvegarder Win11-labo
+python3 -m clonegator images
+python3 -m clonegator restaurer 2026-09-24_2029_Win11-labo
 ```
 
 ## Banc d'essai

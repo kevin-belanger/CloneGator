@@ -1,6 +1,6 @@
 # CloneGator — Plan de développement
 
-Compagnon de [ANALYSE-FONCTIONNELLE.md](ANALYSE-FONCTIONNELLE.md), révision 0.6.
+Compagnon de [ANALYSE-FONCTIONNELLE.md](ANALYSE-FONCTIONNELLE.md), révision 0.7.
 Les renvois `§n` pointent vers l'analyse.
 
 | Rév. | Date | Auteur | Changement |
@@ -11,6 +11,7 @@ Les renvois `§n` pointent vers l'analyse.
 | 0.4 | 2026-09-24 | Kevin + Claude | Phase 1 terminée et mesurée sur les baies. Le banc en boucle n'est plus le « niveau rapide » : les SSD des baies sont assez rapides pour itérer. Il devient une fabrique de sources et de cibles impossibles à obtenir sur les baies sans sacrifier le maître. Pannes de cibles simulées par `/sys` sur les vrais disques |
 | 0.5 | 2026-09-24 | Kevin + Claude | Phase 2 terminée : un Windows cloné vers cinq cibles démarre sur cinq machines différentes. Résultats et enseignements consignés |
 | 0.6 | 2026-09-24 | Kevin + Claude | Analyse 0.4 : mode libre par défaut et mode station en raccourci, emplacements, P1 et P2 reformulés, format d'image arrêté. La phase 3 fait de la restauration un clonage dont la source est une image ; la phase 4 porte les emplacements, les modes et les filets de P2. Note de transition sur les rôles du code actuel |
+| 0.7 | 2026-09-25 | Kevin + Claude | Phase 3 terminée : une image du Windows du port 1, restaurée vers trois cibles effacées, démarre sur trois machines. Montage d'un disque USB dédié et essai du refus FAT32 reportés en phase 4, faute de disque |
 
 ---
 
@@ -252,7 +253,7 @@ Ce que les essais ont appris :
 - **Les noms `/dev/sdX` changent** quand on retire et remet les disques : après le test de
   démarrage, le port 6 était passé de `sdb` à `sdg`. Le logiciel ne raisonne qu'en ports (P3).
 
-### Phase 3 — Images · taille M
+### Phase 3 — Images · taille M · **terminée le 2026-09-25**
 
 - `image` : le format du §7.2 — `clonegator.json` écrit en dernier, `LISEZMOI.txt`, empreintes
   au format `sha256sum`, les deux modes
@@ -271,12 +272,46 @@ empreintes **avant** toute écriture sur les cibles ; un dossier sans `clonegato
 n'apparaît pas dans la liste ; une image restaurée à la main en suivant son `LISEZMOI.txt` donne
 une cible conforme ; et un vrai disque restauré depuis une image démarre.
 
+**Résultat.** `image`, `storage`, `engine/sources`, `engine/backup`, et les sous-commandes
+`images`, `sauvegarder`, `restaurer`. Essais automatiques : `tests.test_layout` (sans disque) et
+`tests.test_images_banc` (banc).
+
+| Essai | Résultat |
+|-------|----------|
+| Windows du port 1 → image sur le T7 | 2,6 min, image de 8,94 Gio pour 23 Go utilisés |
+| image → trois cibles effacées au préalable | 3 réussies en 2,1 min, dont 27 s de vérification des empreintes |
+| les trois cibles démarrées sur trois machines (Kevin) | **démarrage normal** |
+| contre-vérification du port 2 | partition EFI et 268 621 fichiers de C: identiques au maître |
+| banc, aller-retour automatique et brut, source 1-2-3-5 | conforme au manifeste, 1-2-3-5 préservé |
+| banc, image tronquée à la main | refusée avant toute écriture, fichier nommé, cible identique au bit près |
+| banc, restauration à la main par le seul `LISEZMOI.txt`, disque vierge | conforme |
+
+Ce que les essais ont appris :
+
+- **Restaurer va plus vite que cloner** : on lit le disque d'images et `zstd -d`, rapides, au
+  lieu du maître, lent. La vérification des empreintes coûte une demi-minute pour 9 Gio.
+- **Le TRIM ne vide pas toujours un disque** : ces SSD ne garantissent pas de rendre des zéros
+  après effacement (`DISC-ZERO` à 0). Pour qu'un essai de restauration prouve quelque chose, les
+  cibles ont été effacées puis vérifiées par échantillonnage — une seconde passe a suffi, sauf
+  un résidu de 0,1 % sur un disque.
+- **Une image brute restaurée sur un disque plus grand** laisse l'en-tête GPT de secours là où
+  finissait le disque d'origine, pas à la fin de la cible. C'est le propre d'une copie secteur
+  par secteur ; le mode automatique, lui, le replace.
+- **Une partition FAT presque vide se compresse à presque rien** (810 octets pour 256 Mio sur le
+  banc) : ses tables sont faites de zéros.
+
+**Reporté en phase 4, faute de matériel** : monter un disque USB de stockage qui ne l'est pas
+encore, et essayer le refus FAT32 sur un vrai disque. Aujourd'hui, `storage` ne voit que les
+systèmes de fichiers déjà montés — celui du T7, par exemple.
+
 ### Phase 4 — Interface et modes · taille L
 
 - `devices` : les emplacements du §3.1 — SATA sur plusieurs contrôleurs, NVMe, USB ramenés à un
   connecteur physique (un port USB 3 et son jumeau USB 2 ne font qu'un) — et les deux filets de
   P2 : ouverture exclusive refusée par le noyau, images CloneGator présentes sur le disque
 - mode libre et mode station (§3.2, §3.3), réglage de station enregistré dans `/etc/clonegator/`
+- `storage` : monter un disque USB de stockage qui ne l'est pas, et refuser un FAT32 sur un vrai
+  disque (reporté de la phase 3)
 - l'écran de confirmation annonce les partitions copiées intégralement, Windows mal arrêté en
   tête (§6.2, §9.2)
 - `ui/model` d'abord, testable et imprimable en texte brut
