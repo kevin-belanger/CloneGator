@@ -99,7 +99,11 @@ class Clonage:
         journal: Journal,
         *,
         delai_blocage: float = 60.0,
+        forcer_smart: frozenset[str] = frozenset(),
     ):
+        """`forcer_smart` : les chemins des cibles que l'opérateur a choisies
+        bien que SMART les déclare défaillantes (§12)."""
+        self.forcer_smart = forcer_smart
         if isinstance(source, Disque):
             source = SourceDisque(source)
         self.source = source
@@ -269,7 +273,8 @@ class Clonage:
                          f"la source en a de {self.source.secteur}")
             else:
                 # Les filets de P2 se décident dans devices, et seulement là.
-                motif = devices.refus_comme_cible(disque) or _essai_ouverture(disque.chemin)
+                motif = (devices.refus_comme_cible(disque, disque.chemin in self.forcer_smart)
+                         or _essai_ouverture(disque.chemin))
 
             if motif:
                 cible.conclure(ECARTEE, motif)

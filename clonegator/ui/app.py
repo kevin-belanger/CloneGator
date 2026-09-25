@@ -14,7 +14,7 @@ import logging
 import threading
 import time
 
-from .. import VERSION, config, demarrage, devices, filesystems, image, journal, layout, storage
+from .. import VERSION, config, demarrage, devices, filesystems, health, image, journal, layout, storage
 from .. import texte
 from ..engine import backup, clone, fanout, sources
 from ..journal import Journal
@@ -298,10 +298,13 @@ class Application:
             etat, style = "prêt", OK
             if disque is not None:
                 refus = devices.refus_comme_cible(disque)
+                sante = health.etat(disque)
                 if refus:
                     etat, style = refus, AVERTISSEMENT
                 elif requis is not None and disque.taille < requis:
                     etat, style = f"trop petit ({texte.taille(requis)} requis)", AVERTISSEMENT
+                elif sante.niveau == health.USURE:
+                    etat, style = f"prêt, {sante}", AVERTISSEMENT
             lignes.append(rangee(noms.get(cle, "?"), "CIBLE", disque, etat, style))
 
         for candidat in storage.candidats():
@@ -385,16 +388,22 @@ class Application:
                 motif = f"trop petit : {texte.taille(requis)} requis"
             if not motif and disque.secteur_logique != secteur:
                 motif = f"secteurs de {disque.secteur_logique} octets, la source en a de {secteur}"
+            smart = motif == devices.REFUS_SMART
             elements.append(Element(f"{disque.libelle:<13} {disque.description:<22} "
                                     f"{texte.taille(disque.taille):>9}", disque,
-                                    actif=not motif, motif=motif, detail=texte.contenu(disque)))
+                                    actif=not motif, motif=motif, detail=texte.contenu(disque),
+                                    forcable=smart,
+                                    motif_force="⚠ SMART défaillant, choisi quand même" if smart else ""))
         liste = Liste("", elements, multiple=True,
                       explication="Tout le contenu des disques cochés sera effacé.")
+        aide = AIDE_COCHER
+        if any(e.forcable for e in elements):
+            aide += "    F : forcer un disque SMART défaillant"
         if precedentes:
             # Revenir de la confirmation ne doit pas faire tout recocher.
             chemins = {d.chemin for d in precedentes}
             liste.cocher([e.valeur for e in elements if e.valeur.chemin in chemins])
-        return self.ecran.choisir(self._page(titre, aide=AIDE_COCHER), liste)
+        return self.ecran.choisir(self._page(titre, aide=aide), liste)
 
     def _choisir_stockage(self, titre: str) -> storage.Stockage | None:
         """§7.4 : un disque USB ou le partage réseau ; l'étape apparaît toujours."""
@@ -527,8 +536,10 @@ class Application:
     # -------------------------------------------------------------- exécution ---
 
     def _executer_clonage(self, source, cibles, nom_operation: str, volume: int, reseau: bool = False) -> None:
+        # Une cible choisie malgré un SMART défaillant l'a été délibérément (touche F).
+        forcees = frozenset(c.chemin for c in cibles if health.etat(c).niveau == health.DEFAILLANT)
         with Journal(nom_operation) as j:
-            operation = clone.Clonage(source, cibles, j)
+            operation = clone.Clonage(source, cibles, j, forcer_smart=forcees)
             titre = "Clonage" if nom_operation == "clonage" else "Restauration"
             suivi = _Suivi(operation, volume)
             self._executer(operation, lambda: suivi.page(titre))

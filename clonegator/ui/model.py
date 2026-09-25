@@ -52,6 +52,8 @@ class Element:
     actif: bool = True
     motif: str = ""
     detail: str = ""  # ajouté en second plan, après le libellé
+    forcable: bool = False  # un refus que l'opérateur peut lever (touche F)
+    motif_force: str = ""  # ce qu'on affiche une fois forcé
 
 
 @dataclass
@@ -88,6 +90,13 @@ class Liste:
         actifs = self._actifs()
         if touche == "echap":
             return RETOUR
+        if touche in ("f", "F") and any(e.forcable and not e.actif for e in self.elements):
+            for element in self.elements:
+                if element.forcable and not element.actif:
+                    element.actif = True
+                    element.motif = element.motif_force
+            self.message = "Disques déclarés défaillants par SMART : choisissables, à vos risques."
+            return None
         if not actifs:
             return None
         if touche in ("haut", "bas"):

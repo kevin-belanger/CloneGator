@@ -25,7 +25,7 @@ import os
 import re
 from dataclasses import dataclass, field
 
-from . import image, montage, sysexec
+from . import health, image, montage, sysexec
 
 _log = logging.getLogger("clonegator.devices")
 
@@ -36,6 +36,7 @@ BUS_AUTRE = "autre"
 
 REFUS_SYSTEME = "utilisé par le système"
 REFUS_SAUVEGARDES = "contient des sauvegardes CloneGator"
+REFUS_SMART = "SMART : défaillant, le disque se déclare lui-même en fin de vie"
 
 _COLONNES = (
     "PATH,TYPE,SIZE,MODEL,SERIAL,TRAN,PTTYPE,LOG-SEC,FSTYPE,MOUNTPOINT,FSUSED,UUID,LABEL"
@@ -338,12 +339,19 @@ def refus_comme_source(disque: Disque) -> str:
     return REFUS_SYSTEME if utilise_par_le_systeme(disque) else ""
 
 
-def refus_comme_cible(disque: Disque) -> str:
-    """Motif pour lequel ce disque ne peut pas être cible, ou chaîne vide."""
+def refus_comme_cible(disque: Disque, forcer_smart: bool = False) -> str:
+    """Motif pour lequel ce disque ne peut pas être cible, ou chaîne vide.
+
+    Un disque que SMART déclare défaillant est écarté par défaut (§12) : cloner
+    sur un disque mourant réussit aujourd'hui sans que personne ne le sache.
+    L'opérateur peut forcer ; les deux filets de P2, eux, ne se forcent pas.
+    """
     if utilise_par_le_systeme(disque):
         return REFUS_SYSTEME
     if contient_sauvegardes(disque):
         return REFUS_SAUVEGARDES
+    if not forcer_smart and health.etat(disque).niveau == health.DEFAILLANT:
+        return REFUS_SMART
     return ""
 
 
