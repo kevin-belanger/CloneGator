@@ -1,0 +1,7 @@
+#!/bin/sh
+# Une purge efface les réglages ; les journaux restent (§10).
+set -e
+if [ "$1" = "purge" ]; then
+    rm -rf /etc/clonegator
+fi
+exit 0

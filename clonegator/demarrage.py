@@ -21,12 +21,15 @@ _log = logging.getLogger("clonegator.demarrage")
 UNITE = "clonegator.service"
 FICHIER_UNITE = f"/etc/systemd/system/{UNITE}"
 GETTY = "getty@tty1.service"
+INSTALLE = "/usr/bin/clonegator"
 
 
 def _contenu() -> str:
-    # Le paquet (phase 5) installera CloneGator dans /usr/lib/clonegator ; en
+    # Installé par le paquet, CloneGator se lance par sa commande ; en
     # développement, on lance celui du dépôt, là où il est.
     dossier = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    commande = (INSTALLE if dossier == "/usr/lib/clonegator" and os.path.exists(INSTALLE)
+                else f"{sys.executable} -m clonegator")
     return f"""[Unit]
 Description=CloneGator en mode station, sur la console
 # Démarrer après l'arrêt de l'invite de connexion : sa session, en se fermant,
@@ -37,7 +40,7 @@ Conflicts={GETTY}
 [Service]
 Type=simple
 WorkingDirectory={dossier}
-ExecStart={sys.executable} -m clonegator
+ExecStart={commande}
 # En quittant CloneGator, rendre la console à l'invite de connexion.
 ExecStopPost=/bin/systemctl --no-block start {GETTY}
 StandardInput=tty-force

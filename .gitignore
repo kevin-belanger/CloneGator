@@ -6,3 +6,6 @@ __pycache__/
 # Banc d'essai (hors du dépôt par défaut, mais au cas où)
 *.img
 *.sha256
+
+# Paquets construits
+dist/

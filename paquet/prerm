@@ -1,0 +1,11 @@
+#!/bin/sh
+# À la désinstallation, rendre la console à son invite de connexion si le
+# mode station l'avait prise (unité écrite par CloneGator, pas par le paquet).
+set -e
+if [ "$1" = "remove" ] && [ -f /etc/systemd/system/clonegator.service ]; then
+    systemctl disable clonegator.service >/dev/null 2>&1 || true
+    systemctl enable getty@tty1.service >/dev/null 2>&1 || true
+    rm -f /etc/systemd/system/clonegator.service
+    systemctl daemon-reload || true
+fi
+exit 0
