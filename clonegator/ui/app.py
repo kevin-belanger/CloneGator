@@ -11,10 +11,12 @@ visibles, grisés, avec leur motif ; ce qu'un disque peut devenir se décide dan
 from __future__ import annotations
 
 import logging
+import os
+import re
 import threading
 import time
 
-from .. import VERSION, config, demarrage, devices, filesystems, health, image, journal, layout, storage
+from .. import VERSION, config, demarrage, devices, filesystems, health, image, journal, layout, storage, sysexec
 from .. import texte
 from ..engine import backup, clone, fanout, sources
 from ..journal import Journal
@@ -777,7 +779,6 @@ def demarrer() -> int:
     """Ouvre l'interface sur le terminal courant."""
     import curses
     import locale
-    import os
     import signal
 
     from .. import verrou
@@ -797,14 +798,39 @@ def demarrer() -> int:
     signal.signal(signal.SIGTERM, arreter)
     signal.signal(signal.SIGHUP, arreter)
 
+    console = _console_physique()
+
     def principal(fenetre):
         curses.raw()  # Ctrl-C devient une touche : l'interface ne meurt pas en pleine copie
-        Application(Ecran(fenetre)).lancer()
+        Application(Ecran(fenetre, console_physique=console)).lancer()
 
+    # Sur une console physique, le noyau écrit ses erreurs (« I/O error… ») par
+    # dessus l'écran et le fait défiler. Seules les urgences y passent pendant
+    # que CloneGator tourne ; tout reste dans le journal du système.
+    niveau = _taire_le_noyau() if console else None
     try:
         curses.wrapper(principal)
     except ArretDemande:
         pass  # demandé hors d'une page : rien à interrompre
     finally:
+        if niveau is not None:
+            sysexec.ecrire("/proc/sys/kernel/printk", niveau)
         tenu.close()
     return 0
+
+
+def _console_physique() -> bool:
+    """Tourne-t-on sur une console texte de la machine (tty1…), et pas par SSH ?"""
+    try:
+        return re.fullmatch(r"/dev/tty\d+", os.ttyname(0)) is not None
+    except OSError:
+        return False
+
+
+def _taire_le_noyau() -> str | None:
+    """Ne laisse passer sur la console que les urgences ; rend le niveau d'origine."""
+    reglage = sysexec.lire("/proc/sys/kernel/printk")
+    if not reglage:
+        return None
+    ancien = reglage.split()[0]
+    return ancien if sysexec.ecrire("/proc/sys/kernel/printk", "1") else None

@@ -36,9 +36,16 @@ _CARACTERES = {
 }
 
 
+# Sur une console physique, tout l'écran est redessiné à ce rythme : ce que
+# quelqu'un d'autre y aurait écrit disparaît.
+_REDESSIN_COMPLET = 10.0
+
+
 class Ecran:
-    def __init__(self, fenetre):
+    def __init__(self, fenetre, console_physique: bool = False):
         self.fenetre = fenetre
+        self.console_physique = console_physique
+        self._dernier_redessin = time.monotonic()
         self.fenetre.keypad(True)
         try:
             curses.curs_set(0)
@@ -87,6 +94,9 @@ class Ecran:
 
     def dessiner(self, page: Page, corps: list[Ligne], choisie: int | None = None,
                  message: str = "", style_message: str = AVERTISSEMENT) -> None:
+        if self.console_physique and time.monotonic() - self._dernier_redessin > _REDESSIN_COMPLET:
+            self.fenetre.clearok(True)
+            self._dernier_redessin = time.monotonic()
         self.fenetre.erase()
         hauteur, largeur = self.fenetre.getmaxyx()
         # La bande du haut ne porte que le nom du logiciel ; l'intitulé de la
