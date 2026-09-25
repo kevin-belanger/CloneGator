@@ -1,6 +1,6 @@
 # CloneGator — Plan de développement
 
-Compagnon de [ANALYSE-FONCTIONNELLE.md](ANALYSE-FONCTIONNELLE.md), révision 1.1.
+Compagnon de [ANALYSE-FONCTIONNELLE.md](ANALYSE-FONCTIONNELLE.md), révision 1.2.
 Les renvois `§n` pointent vers l'analyse.
 
 | Rév. | Date | Auteur | Changement |
@@ -16,6 +16,7 @@ Les renvois `§n` pointent vers l'analyse.
 | 0.9 | 2026-09-25 | Kevin + Claude | Phase 4 terminée sur la station A, essais avec un disque USB compris (montage, FAT32, cible). Restent un redémarrage réel en lancement automatique et un disque réellement usé pour SMART. Enseignements : réserve d'écriture commune, retrait à chaud, partage réseau lent, unité systemd |
 | 1.0 | 2026-09-25 | Kevin + Claude | Phase 5 terminée : paquet .deb publié en release GitHub, installé et éprouvé sur une machine neuve. MVP livré |
 | 1.1 | 2026-09-25 | Kevin + Claude | Analyse 0.8 : phase 6, le CloneGator live, première étape vers le mode PXE (§17) |
+| 1.2 | 2026-09-25 | Kevin + Claude | Phase 6 : le live se construit et passe ses essais dans QEMU (BIOS, UEFI Secure Boot, clonage, sauvegarde, restauration). Le paquet dépend désormais de `fdisk` |
 
 ---
 
@@ -438,6 +439,26 @@ vraie clé sur de vraies machines.
 **Fini quand** : l'ISO, écrite sur une clé, démarre en BIOS et en UEFI Secure Boot sur de
 vraies machines, s'ouvre sur CloneGator avec le bon clavier, et y mène un clonage dont la cible
 démarre, ainsi qu'une sauvegarde vers un partage réseau.
+
+**Où on en est (2026-09-25).** `./outils/construire-live.sh` construit l'ISO en moins de deux
+minutes (250 Mo). Dans QEMU, sans virtualisation matérielle sur la station A, l'ISO démarre
+comme une clé USB en BIOS et en UEFI avec Secure Boot actif (clés Microsoft, noyau Debian
+verrouillé) ; le menu montre les trois claviers, accents compris ; CloneGator s'ouvre seul ;
+« Quitter » éteint, redémarre ou ouvre une console root ; le réseau prend son adresse par DHCP.
+Un clonage, une sauvegarde vers un disque USB et sa restauration réussissent, empreintes
+vérifiées partition par partition. Restent les essais sur de vraies machines, dont la sauvegarde
+vers le partage réseau, et la publication.
+
+Enseignements :
+
+- Debian 13 range `sfdisk` dans le paquet `fdisk`, qu'Ubuntu installe d'office : sans lui,
+  CloneGator se repliait en silence sur une copie intégrale. Le paquet en dépend désormais.
+- Debian 13 minimal n'a pas non plus `login` : la console de dépannage l'exige.
+- La clé du live, montée en iso9660, était proposée comme stockage à 0 o libre : un disque
+  monté sans système de fichiers inscriptible n'est plus proposé.
+- GRUB en BIOS : son cœur est limité à 480 Ko ; ses modules restent dans l'image intégrée, avec
+  leurs dépendances, sans quoi la police des accents ne se charge pas.
+- Le service du clavier ne doit pas attendre `local-fs.target` : cycle avec `keyboard-setup`.
 
 ---
 

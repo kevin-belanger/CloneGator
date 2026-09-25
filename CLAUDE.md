@@ -66,7 +66,8 @@ fonctions, commentaires, messages de commit. S'y tenir.
 
 ## Où on en est
 
-Phases 1 à 5 terminées : le MVP est livré. Phase 6 à venir : le CloneGator live (plan). `python3 -m clonegator` ouvre l'interface : mode libre
+Phases 1 à 5 terminées : le MVP est livré. Phase 6 en cours : le CloneGator live, qui passe
+ses essais dans QEMU ; restent les vraies machines (plan). `python3 -m clonegator` ouvre l'interface : mode libre
 (sauvegarder, restaurer, cloner), mode station, journaux, partage réseau.
 Reste un essai : un disque réellement usé pour SMART (plan, phase 4). Les
 sous-commandes servent au développement.
@@ -101,6 +102,14 @@ outil de construction, publiées sur GitHub Pages par
 `clonegator.com`. La page Télécharger lit les releases GitHub au chargement :
 publier une release suffit. Garder les textes fidèles au logiciel (écrans
 recopiés de l'interface réelle) et simples à lire pour un technicien.
+
+## Le live
+
+`./outils/construire-live.sh` (root) construit `dist/clonegator-live_<version>.iso` et les
+fichiers du démarrage réseau à partir du `.deb` du commit courant. Ce qu'on ajoute au système
+live vit dans `live/systeme/`, le menu de démarrage dans `live/grub.cfg`. La station A n'a pas
+de virtualisation matérielle : QEMU tourne en émulation (`-accel tcg`), une minute pour
+démarrer ; écran par `screendump` du moniteur, touches par `sendkey`.
 
 ## Essais
 
