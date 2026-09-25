@@ -1,0 +1,347 @@
+/* CloneGator — site de présentation. Sobre : une couleur, celle du logo. */
+
+:root {
+  --vert: #7cb82f;
+  --vert-texte: #4f7d14;
+  --noir: #000103;
+  --fond: #fafbf8;
+  --carte: #ffffff;
+  --texte: #1c211a;
+  --doux: #5a6356;
+  --ligne: #e1e6dc;
+  --code-fond: #f0f3ec;
+  --terminal: #121411;
+  --terminal-texte: #d9ddd5;
+  --largeur: 60rem;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --vert-texte: #9bd14f;
+    --fond: #0e110d;
+    --carte: #151914;
+    --texte: #e4e8e0;
+    --doux: #9aa395;
+    --ligne: #262c23;
+    --code-fond: #1b2019;
+    --terminal: #0a0b0a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --vert-texte: #9bd14f;
+  --fond: #0e110d;
+  --carte: #151914;
+  --texte: #e4e8e0;
+  --doux: #9aa395;
+  --ligne: #262c23;
+  --code-fond: #1b2019;
+  --terminal: #0a0b0a;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--fond);
+  color: var(--texte);
+  font: 17px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+a { color: var(--vert-texte); text-underline-offset: 2px; }
+a:hover { text-decoration-thickness: 2px; }
+
+img { max-width: 100%; height: auto; }
+
+.conteneur {
+  max-width: var(--largeur);
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+/* ------------------------------------------------------------- en-tête --- */
+
+.entete {
+  background: var(--noir);
+  color: #fff;
+  border-bottom: 3px solid var(--vert);
+}
+.entete .conteneur {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  min-height: 64px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+.marque {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #fff;
+  text-decoration: none;
+  font-weight: 800;
+  font-size: 1.2rem;
+  letter-spacing: 0.02em;
+}
+.marque img { width: 40px; height: 40px; border-radius: 8px; }
+.marque span b { color: var(--vert); font-weight: 800; }
+
+.navigation { display: flex; flex-wrap: wrap; gap: 4px 20px; }
+.navigation a {
+  color: #c9cec5;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 4px 0;
+  border-bottom: 2px solid transparent;
+}
+.navigation a:hover { color: #fff; }
+.navigation a[aria-current="page"] { color: #fff; border-bottom-color: var(--vert); }
+
+/* ------------------------------------------------------------ accroche --- */
+
+.accroche {
+  background: var(--noir);
+  color: #eef1ea;
+  padding: 40px 0 56px;
+}
+.accroche .conteneur {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  align-items: center;
+  gap: 32px;
+}
+.accroche h1 {
+  margin: 0 0 12px;
+  font-size: clamp(2rem, 4.4vw, 2.7rem);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+.accroche h1 em { font-style: normal; color: var(--vert); }
+.accroche p { margin: 0 0 24px; color: #b9bfb4; font-size: 1.1rem; max-width: 34rem; }
+.accroche img { justify-self: center; width: 100%; max-width: 420px; }
+
+.boutons { display: flex; flex-wrap: wrap; gap: 12px; }
+.bouton {
+  display: inline-block;
+  padding: 11px 20px;
+  border-radius: 8px;
+  font-weight: 700;
+  text-decoration: none;
+  border: 2px solid var(--vert);
+  color: #fff;
+}
+.bouton.plein { background: var(--vert); color: #0a0b0a; }
+.bouton:hover { filter: brightness(1.1); }
+
+/* -------------------------------------------------------------- sections --- */
+
+main { padding-bottom: 48px; }
+
+section { padding: 48px 0 8px; }
+section + section { border-top: 1px solid var(--ligne); margin-top: 32px; }
+
+h2 { font-size: 1.7rem; line-height: 1.25; margin: 0 0 16px; }
+h3 { font-size: 1.15rem; margin: 28px 0 8px; }
+p, ul, ol, table { margin: 0 0 16px; }
+.intro { font-size: 1.1rem; color: var(--doux); max-width: 44rem; }
+.doux { color: var(--doux); }
+
+.titre-page { padding: 40px 0 8px; }
+.titre-page h1 { font-size: 2.2rem; margin: 0 0 8px; }
+
+.grille {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12.5rem, 1fr));
+  gap: 16px;
+  margin: 24px 0;
+}
+.carte {
+  background: var(--carte);
+  border: 1px solid var(--ligne);
+  border-radius: 10px;
+  padding: 20px;
+}
+.carte h3 { margin-top: 0; }
+.carte p:last-child { margin-bottom: 0; }
+
+.chiffre {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  border-left: 4px solid var(--vert);
+  padding: 8px 0 8px 20px;
+  margin: 24px 0;
+}
+.chiffre strong { font-size: 2rem; line-height: 1.2; }
+.chiffre span { color: var(--doux); }
+
+.garanties { list-style: none; padding: 0; }
+.garanties li { position: relative; padding-left: 32px; margin-bottom: 12px; }
+.garanties li::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 0.5em;
+  width: 12px;
+  height: 7px;
+  border-left: 3px solid var(--vert);
+  border-bottom: 3px solid var(--vert);
+  transform: rotate(-45deg);
+}
+
+/* ----------------------------------------------------------------- étapes --- */
+
+.etapes { list-style: none; padding: 0; counter-reset: etape; }
+.etapes > li {
+  counter-increment: etape;
+  position: relative;
+  padding-left: 52px;
+  margin-bottom: 28px;
+}
+.etapes > li::before {
+  content: counter(etape);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--vert);
+  color: #0a0b0a;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+}
+.etapes h3 { margin: 4px 0 8px; }
+
+/* ------------------------------------------------------------------ code --- */
+
+code, pre, .terminal { font-family: ui-monospace, "Cascadia Mono", "DejaVu Sans Mono", Menlo, Consolas, monospace; }
+code { background: var(--code-fond); padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
+pre {
+  background: var(--code-fond);
+  border: 1px solid var(--ligne);
+  border-radius: 8px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+
+/* Un écran de CloneGator, tel que curses le dessine. */
+.terminal {
+  background: var(--terminal);
+  color: var(--terminal-texte);
+  border-radius: 10px;
+  padding: 0 0 14px;
+  margin: 16px 0 24px;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  overflow-x: auto;
+  white-space: pre;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+.terminal .bande { display: block; background: var(--terminal-texte); color: var(--terminal); padding: 2px 16px; font-weight: 700; margin-bottom: 14px; }
+.terminal .corps { display: block; padding: 0 16px; }
+.terminal b { color: #fff; }
+.terminal .ok { color: var(--vert); font-weight: 700; }
+.terminal .non { color: #8b9187; }
+.terminal .alerte { color: #e6c547; font-weight: 700; }
+.terminal .choisi { background: var(--terminal-texte); color: var(--terminal); }
+.terminal .aide { color: #6fc6c9; }
+figure { margin: 0; }
+figcaption { color: var(--doux); font-size: 0.9rem; margin-top: -12px; margin-bottom: 24px; }
+
+/* ---------------------------------------------------------------- tableaux --- */
+
+.tableau { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--ligne); vertical-align: top; }
+th { font-weight: 700; }
+
+.touches kbd {
+  display: inline-block;
+  min-width: 1.8em;
+  text-align: center;
+  padding: 1px 7px;
+  border: 1px solid var(--ligne);
+  border-bottom-width: 3px;
+  border-radius: 5px;
+  background: var(--carte);
+  font: 600 0.85rem ui-monospace, Menlo, Consolas, monospace;
+}
+
+/* -------------------------------------------------------- page de détails --- */
+
+.sommaire {
+  background: var(--carte);
+  border: 1px solid var(--ligne);
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin: 24px 0;
+}
+.sommaire ol { margin: 0; padding-left: 1.3em; columns: 2 14rem; column-gap: 32px; }
+.sommaire li { margin: 2px 0; }
+
+/* ---------------------------------------------------------- téléchargement --- */
+
+.derniere {
+  background: var(--carte);
+  border: 1px solid var(--ligne);
+  border-top: 4px solid var(--vert);
+  border-radius: 10px;
+  padding: 24px;
+  margin: 24px 0;
+}
+.derniere h2 { margin-bottom: 4px; }
+.derniere .bouton { color: #0a0b0a; }
+
+.versions { list-style: none; padding: 0; }
+.versions > li { border-bottom: 1px solid var(--ligne); padding: 20px 0; }
+.versions h3 { margin: 0 0 2px; font-size: 1.05rem; word-break: break-word; }
+.versions .notes { margin-top: 12px; }
+.versions .notes p, .versions .notes ul { margin-bottom: 10px; }
+.pastille {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--vert);
+  color: #0a0b0a;
+  vertical-align: middle;
+  margin-left: 6px;
+}
+
+/* ------------------------------------------------------------ pied de page --- */
+
+.pied {
+  border-top: 1px solid var(--ligne);
+  padding: 24px 0 40px;
+  color: var(--doux);
+  font-size: 0.9rem;
+}
+.pied .conteneur { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; }
+.pied a { color: inherit; }
+
+/* ------------------------------------------------------------- téléphone --- */
+
+@media (max-width: 720px) {
+  body { font-size: 16px; }
+  .accroche { padding: 24px 0 40px; }
+  .accroche .conteneur { grid-template-columns: 1fr; }
+  .accroche img { order: -1; max-width: 260px; }
+  section { padding-top: 36px; }
+  .etapes > li { padding-left: 44px; }
+  .terminal { font-size: 0.72rem; }
+}

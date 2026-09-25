@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CloneGator</title>
+  <meta name="description" content="Cloner, sauvegarder et restaurer des disques sous Linux. Plusieurs cibles à la fois, seules les données utiles copiées, le disque source protégé en lecture seule. Gratuit.">
+  <meta property="og:title" content="CloneGator">
+  <meta property="og:description" content="Cloner, sauvegarder et restaurer des disques, sans se tromper de disque.">
+  <meta property="og:image" content="https://clonegator.com/img/logo.png">
+  <link rel="icon" href="img/icone.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="entete">
+  <div class="conteneur">
+    <a class="marque" href="./"><img src="img/icone.png" alt=""><span>Clone<b>Gator</b></span></a>
+    <nav class="navigation">
+      <a href="./" aria-current="page">Accueil</a>
+      <a href="details.html">Détails</a>
+      <a href="telecharger.html">Télécharger</a>
+      <a href="https://github.com/kevin-belanger/CloneGator">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="accroche">
+  <div class="conteneur">
+    <div>
+      <h1>Cloner des disques,<br><em>sans se tromper de disque.</em></h1>
+      <p>CloneGator copie un disque vers plusieurs disques à la fois, le sauvegarde
+      en image et le restaure. Une interface au clavier, faite pour les techniciens
+      qui préparent des postes à la chaîne.</p>
+      <div class="boutons">
+        <a class="bouton plein" href="telecharger.html">Télécharger</a>
+        <a class="bouton" href="#demarrer">Démarrer</a>
+      </div>
+    </div>
+    <img src="img/mascotte.png" width="520" height="427" alt="La mascotte de CloneGator, un alligator qui tient un disque dur">
+  </div>
+</div>
+
+<main class="conteneur">
+
+  <section>
+    <h2>Trois opérations, et un raccourci</h2>
+    <p class="intro">Vous choisissez l'opération, puis les disques, puis vous confirmez.
+    CloneGator s'occupe du reste : il reconnaît les partitions, choisit comment copier
+    chacune et vous dit à la fin quels disques sont bons.</p>
+
+    <div class="grille">
+      <div class="carte">
+        <h3>Cloner</h3>
+        <p>Un disque maître vers un ou plusieurs disques. Le maître est lu une seule
+        fois et envoyé à toutes les cibles en même temps.</p>
+      </div>
+      <div class="carte">
+        <h3>Sauvegarder</h3>
+        <p>Un disque vers une image compressée, sur un disque USB ou sur un partage
+        réseau Windows.</p>
+      </div>
+      <div class="carte">
+        <h3>Restaurer</h3>
+        <p>Une image vers un ou plusieurs disques, sans le disque d'origine.
+        L'image est vérifiée avant la moindre écriture.</p>
+      </div>
+      <div class="carte">
+        <h3>Mode station</h3>
+        <p>Pour une machine à baies : la source et les cibles sont réglées une fois
+        pour toutes. On change les disques et on lance.</p>
+      </div>
+    </div>
+
+    <div class="chiffre">
+      <strong>1 min 44 s</strong>
+      <span>pour copier un Windows de 23,7 Go vers cinq SSD, sur notre station d'essai.</span>
+    </div>
+    <p>Seules les données utiles sont copiées : sur un disque de 480 Go qui en contient 24,
+    CloneGator lit 24 Go, pas 480. Pour chaque partition (NTFS, ext4, FAT, exFAT, XFS,
+    Btrfs, HFS+), il utilise <code>partclone</code>, qui ne copie que les blocs occupés.</p>
+  </section>
+
+  <section>
+    <h2>Le maître ne risque rien</h2>
+    <p class="intro">Une copie ratée, on la refait. Un maître écrasé, c'est une journée
+    perdue. CloneGator est construit autour de cette idée.</p>
+    <ul class="garanties">
+      <li><strong>Le disque source passe en lecture seule dans le noyau</strong>, lui et
+      chacune de ses partitions, pendant toute l'opération. Rien ne peut y écrire, pas même
+      CloneGator.</li>
+      <li><strong>Les disques du système ne sont jamais proposés</strong> : monté, en swap,
+      disque de démarrage. Un disque qui contient des sauvegardes CloneGator n'est jamais
+      proposé comme cible.</li>
+      <li><strong>Un écran de confirmation avant toute écriture</strong>, avec le modèle et
+      le numéro de série de chaque disque qui sera effacé. Le choix par défaut est
+      « Annuler ».</li>
+      <li><strong>Un verdict par disque.</strong> Si une cible lâche en route, les autres
+      continuent, et le rapport dit laquelle a échoué.</li>
+    </ul>
+  </section>
+
+  <section id="demarrer">
+    <h2>Démarrer</h2>
+    <ol class="etapes">
+      <li>
+        <h3>Installer</h3>
+        <p>Sur Ubuntu 24.04, dans un terminal :</p>
+<pre><code>wget github.com/kevin-belanger/CloneGator/releases/latest/download/clonegator.deb
+sudo apt install ./clonegator.deb</code></pre>
+        <p class="doux">apt installe aussi les outils sur lesquels CloneGator s'appuie :
+        partclone, zstd, smartmontools, cifs-utils. Rien d'autre à configurer.</p>
+      </li>
+      <li>
+        <h3>Lancer</h3>
+<pre><code>sudo clonegator</code></pre>
+<figure>
+<div class="terminal" role="img" aria-label="Écran d'accueil de CloneGator"><span class="bande"> CloneGator 0.1.0</span><span class="corps"><b>Accueil</b>
+
+<span class="choisi">1. Sauvegarder    un disque vers une sauvegarde                     </span>
+2. Restaurer      une sauvegarde vers un ou plusieurs disques
+3. Cloner         un disque vers un ou plusieurs disques
+4. Mode station   le même réglage à chaque fois, pour une machine à baies
+5. Journaux       les dernières opérations
+6. Quitter
+
+<span class="aide">↑↓ ou numéro : choisir    Entrée : valider    Échap : retour</span></span></div>
+</figure>
+      </li>
+      <li>
+        <h3>Choisir les disques</h3>
+        <p>Chaque disque est désigné par l'endroit où il est branché : <code>SATA1</code>,
+        <code>NVMe1</code>, <code>USB2</code>. Le nom que Linux lui donne (<code>sdb</code>)
+        est affiché à côté, pour information, puisqu'il change quand on retire et remet les
+        disques. Un disque qu'on ne peut pas choisir reste dans la liste, avec la raison.</p>
+<figure>
+<div class="terminal" role="img" aria-label="Choix des disques cibles"><span class="bande"> CloneGator 0.1.0</span><span class="corps"><b>Cloner — vers quels disques ?</b>
+
+<span class="aide">Tout le contenu des disques cochés sera effacé.</span>
+
+1. [ ] SATA2 (sdb)   KINGSTON SA400S3   480,1 Go   GPT, 5 partitions : vfat, ntfs
+2. [x] SATA3 (sdc)   KINGSTON SA400S3   480,1 Go   GPT, 5 partitions : vfat, ntfs
+3. [x] SATA4 (sdd)   KINGSTON SA400S3   480,1 Go   GPT, 5 partitions : vfat, ntfs
+4. [x] SATA5 (sde)   KINGSTON SA400S3   480,1 Go   GPT, 5 partitions : vfat, ntfs
+<span class="non">5. [ ] USB2 (sdg)    PSSD T7            500,1 Go   ✗ utilisé par le système</span>
+<span class="choisi">   → Valider (3 cochés)                                              </span></span></div>
+</figure>
+      </li>
+      <li>
+        <h3>Confirmer, puis lire le rapport</h3>
+        <p>Relisez ce qui sera effacé et lancez. À la fin, le rapport reste à l'écran jusqu'à
+        ce que quelqu'un le lise ; il est aussi gardé dans <code>/var/log/clonegator/</code>
+        et relisible depuis « Journaux ».</p>
+<figure>
+<div class="terminal" role="img" aria-label="Rapport de fin de clonage"><span class="bande"> CloneGator 0.1.0</span><span class="corps"><b>Clonage — rapport</b>
+
+<b>Clonage du 2026-09-25 18:50 — 5 réussie(s) sur 5</b>
+Source : SATA1 (sda), KINGSTON SA400S3, s/n 50026B728399DE13
+Durée totale : 1 min 44 s
+
+  SATA2 (sdb)    s/n 50026B77858AF089   <span class="ok">RÉUSSIE</span>
+  SATA3 (sdc)    s/n 50026B77848F874D   <span class="ok">RÉUSSIE</span>
+  SATA4 (sdd)    s/n 50026B7785169814   <span class="ok">RÉUSSIE</span>
+  SATA5 (sde)    s/n 50026B7785169E1C   <span class="ok">RÉUSSIE</span>
+  SATA6 (sdf)    s/n 50026B77847291A4   <span class="ok">RÉUSSIE</span>
+
+<span class="aide">Journal : /var/log/clonegator/2026-09-25_184822_clonage</span>
+
+<span class="aide">Entrée : revenir</span></span></div>
+</figure>
+      </li>
+    </ol>
+
+    <div class="tableau touches">
+      <table>
+        <tr><th>Touche</th><th>Effet</th></tr>
+        <tr><td><kbd>↑</kbd> <kbd>↓</kbd> ou un numéro</td><td>choisir une ligne</td></tr>
+        <tr><td><kbd>Entrée</kbd></td><td>valider ; dans une liste à cocher, cocher ou décocher</td></tr>
+        <tr><td><kbd>Espace</kbd></td><td>cocher ou décocher</td></tr>
+        <tr><td><kbd>Échap</kbd></td><td>revenir à l'étape précédente ; pendant une copie, proposer de l'interrompre</td></tr>
+      </table>
+    </div>
+
+    <h3>Une station de clonage</h3>
+    <p>Dans « Mode station », indiquez une fois l'emplacement du maître et ceux des cibles.
+    CloneGator peut alors démarrer tout seul à l'allumage de la machine, directement sur
+    le tableau des baies : on insère les disques, on vérifie d'un coup d'œil qu'ils sont
+    tous détectés, et on lance. <a href="details.html#station">En savoir plus</a>.</p>
+  </section>
+
+  <section>
+    <h2>Gratuit</h2>
+    <p>CloneGator est gratuit, pour tout le monde. Le code est sur
+    <a href="https://github.com/kevin-belanger/CloneGator">GitHub</a>, sous licence MIT.</p>
+  </section>
+
+</main>
+
+<footer class="pied">
+  <div class="conteneur">
+    <span>CloneGator · Kevin Bélanger · licence MIT</span>
+    <span><a href="details.html">Détails</a> · <a href="telecharger.html">Télécharger</a> · <a href="https://github.com/kevin-belanger/CloneGator">GitHub</a></span>
+  </div>
+</footer>
+
+</body>
+</html>

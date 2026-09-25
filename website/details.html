@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Détails · CloneGator</title>
+  <meta name="description" content="Comment CloneGator clone, sauvegarde et restaure : emplacements, choix du moteur par partition, format des sauvegardes, mode station, protections.">
+  <link rel="icon" href="img/icone.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="entete">
+  <div class="conteneur">
+    <a class="marque" href="./"><img src="img/icone.png" alt=""><span>Clone<b>Gator</b></span></a>
+    <nav class="navigation">
+      <a href="./">Accueil</a>
+      <a href="details.html" aria-current="page">Détails</a>
+      <a href="telecharger.html">Télécharger</a>
+      <a href="https://github.com/kevin-belanger/CloneGator">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main class="conteneur">
+
+  <div class="titre-page">
+    <h1>Comment ça marche</h1>
+    <p class="intro">CloneGator fait ce que Clonezilla fait bien, sans jamais vous demander
+    de choisir un moteur, un format ou un nom de périphérique. Voici ce qu'il fait à votre
+    place, et comment.</p>
+  </div>
+
+  <nav class="sommaire" aria-label="Sommaire">
+    <ol>
+      <li><a href="#usage">Pour qui, sur quoi</a></li>
+      <li><a href="#emplacements">Les disques par emplacement</a></li>
+      <li><a href="#cloner">Cloner</a></li>
+      <li><a href="#sauvegarder">Sauvegarder</a></li>
+      <li><a href="#restaurer">Restaurer</a></li>
+      <li><a href="#station">Le mode station</a></li>
+      <li><a href="#protections">Les protections</a></li>
+      <li><a href="#pannes">Quand quelque chose tourne mal</a></li>
+      <li><a href="#technique">Installation et fichiers</a></li>
+      <li><a href="#suite">Pas encore là</a></li>
+    </ol>
+  </nav>
+
+  <section id="usage">
+    <h2>Pour qui, sur quoi</h2>
+    <p>CloneGator est né dans un service informatique scolaire, pour préparer des parcs de
+    postes. Il sert dans deux situations :</p>
+    <ul>
+      <li><strong>une station de clonage à plusieurs baies</strong> : un disque maître dans
+      une baie, des disques à écraser dans les autres, on lance et on revient plus tard ;</li>
+      <li><strong>n'importe quel PC sous Linux</strong>, pour sauvegarder son disque en image
+      ou y restaurer une image.</li>
+    </ul>
+    <p>Le cas courant est un disque de 500 Go qui contient beaucoup moins de données. C'est
+    pour ça que CloneGator ne copie que les données utiles, et que la copie intégrale,
+    secteur par secteur, reste l'exception.</p>
+    <p>C'est un programme en mode texte, pour la console ou une session SSH, en français.
+    Il ne copie rien lui-même : il pilote des outils Linux éprouvés
+    (<code>partclone</code>, <code>sfdisk</code>, <code>zstd</code>), et s'occupe de
+    tout ce qui les entoure : choisir, protéger, surveiller, rendre compte.</p>
+  </section>
+
+  <section id="emplacements">
+    <h2>Les disques par emplacement</h2>
+    <p>Un disque est désigné par l'endroit où il est branché, pas par le nom que Linux lui
+    donne. <code>sdb</code> change quand on retire et remet des disques ; le port, lui,
+    ne bouge pas.</p>
+    <div class="tableau">
+      <table>
+        <tr><th>Emplacement</th><th>Ce qu'il désigne</th></tr>
+        <tr><td><code>SATA1</code>, <code>SATA2</code>…</td><td>un port SATA, dans l'ordre des contrôleurs puis des ports. Sur une station, il correspond au numéro de la baie. Un SSD M.2 SATA en fait partie.</td></tr>
+        <tr><td><code>NVMe1</code>, <code>NVMe2</code>…</td><td>un connecteur M.2 NVMe ou PCIe de la carte mère.</td></tr>
+        <tr><td><code>USB1</code>, <code>USB2</code>…</td><td>un connecteur USB de la machine. Un port USB 3 garde le même nom, qu'on y branche un appareil USB 2 ou USB 3, concentrateur compris.</td></tr>
+      </table>
+    </div>
+    <p>Le nom Linux reste affiché à côté, pour information : <code>SATA2 (sdb)</code>.
+    Rien n'est codé en dur : CloneGator trouve les ports que la machine expose, même vides.</p>
+  </section>
+
+  <section id="cloner">
+    <h2>Cloner</h2>
+    <p>Un disque source vers un ou plusieurs disques cibles. La source est lue
+    <strong>une seule fois</strong> et envoyée à toutes les cibles en parallèle, chacune avec
+    sa propre réserve : un disque lent ne ralentit pas les autres, et l'ensemble avance au
+    rythme de la cible la plus lente.</p>
+
+    <h3>Un moteur par partition, choisi pour vous</h3>
+    <div class="tableau">
+      <table>
+        <tr><th>Contenu de la partition</th><th>Ce que fait CloneGator</th></tr>
+        <tr><td>NTFS, ext2/3/4, FAT, exFAT, XFS, Btrfs, HFS+</td><td><code>partclone</code> : seuls les blocs occupés sont lus et écrits</td></tr>
+        <tr><td>Swap</td><td>recréé par <code>mkswap</code>, avec le même UUID : rien à copier</td></tr>
+        <tr><td>Système de fichiers mal démonté, Windows hiberné</td><td>copie intégrale de la partition, annoncée avant de lancer</td></tr>
+        <tr><td>Chiffré (BitLocker, LUKS), inconnu, ou sans système de fichiers</td><td>copie intégrale de la partition</td></tr>
+      </table>
+    </div>
+    <p><strong>Le cas Windows.</strong> Avec le démarrage rapide, Windows 10 et 11 laissent
+    C: hiberné après un arrêt normal. CloneGator ne touche pas au disque source pour lever
+    l'hibernation : il vous le dit à la confirmation, avec la durée de la copie intégrale. Vous
+    continuez, ou vous faites un arrêt complet du Windows d'origine (Maj + Arrêter) et
+    vous revenez.</p>
+
+    <h3>Copié en plus des partitions</h3>
+    <ul>
+      <li>la table de partitions, GPT ou MBR, à l'identique, identifiants compris : le chargeur
+      de Windows retrouve ses partitions ;</li>
+      <li>le code d'amorçage et l'espace avant la première partition ;</li>
+      <li>pour une GPT, la table de secours, replacée à la fin du disque cible ;</li>
+      <li>pour NTFS, le secteur d'amorçage de secours, que <code>partclone</code> ne copie pas.</li>
+    </ul>
+    <p>Une cible plus grande que la source convient. Une cible plus petite aussi, tant
+    qu'elle contient toutes les partitions.</p>
+
+    <h3>Copie intégrale</h3>
+    <p>Pour les cas à part (table non reconnue, disque abîmé, chiffrement du disque
+    entier), la touche <kbd>I</kbd> de l'écran de confirmation demande une copie brute du
+    disque entier, secteur par secteur. C'est long, et c'est annoncé comme tel.</p>
+  </section>
+
+  <section id="sauvegarder">
+    <h2>Sauvegarder</h2>
+    <p>Un disque, une sauvegarde. Elle s'écrit :</p>
+    <ul>
+      <li><strong>sur un disque USB</strong>, détecté et monté par CloneGator. Celui qui porte
+      le système convient aussi. Il doit accepter les fichiers de plus de 4 Go : un disque
+      en FAT32 est refusé, avec un message clair ;</li>
+      <li><strong>ou sur un partage réseau Windows</strong> (SMB). L'hôte, le partage et
+      l'utilisateur sont mémorisés ; le mot de passe est redemandé à chaque fois et n'est
+      jamais enregistré.</li>
+    </ul>
+    <p>Vous lui donnez un nom court, comme <code>Win11-labo-info</code>, qui est
+    proposé d'après le modèle du disque si vous n'avez pas d'idée.</p>
+
+    <h3>Une sauvegarde se lit sans CloneGator</h3>
+    <p>Un dossier par sauvegarde, avec des fichiers qu'on comprend en les regardant :</p>
+<pre><code>CloneGator/
+  2026-09-24_1430_Win11-labo/
+    clonegator.json        description, écrit en tout dernier
+    LISEZMOI.txt           comment la restaurer à la main
+    disque.tete            code d'amorçage
+    disque.sfdisk          table de partitions, en texte
+    p1.vfat.pcl.zst        une partition par fichier, compressée par zstd
+    p2.brut.zst
+    p3.ntfs.pcl.zst
+    p3.ntfs-secours
+    empreintes.sha256      vérifiable par « sha256sum -c »
+    clonegator.log         journal de la sauvegarde</code></pre>
+    <ul>
+      <li><strong>Une sauvegarde est complète quand <code>clonegator.json</code> existe.</strong>
+      Une sauvegarde interrompue n'est jamais proposée à la restauration.</li>
+      <li>Le <code>LISEZMOI.txt</code> donne les commandes exactes pour restaurer avec
+      <code>sfdisk</code>, <code>zstd</code> et <code>partclone</code>. Une sauvegarde reste
+      utilisable même sans CloneGator.</li>
+      <li>CloneGator ne supprime, ne renomme ni ne déplace jamais une sauvegarde. Le ménage
+      se fait à la main.</li>
+    </ul>
+  </section>
+
+  <section id="restaurer">
+    <h2>Restaurer</h2>
+    <p>Choisissez où sont les sauvegardes, puis la sauvegarde (la plus récente en haut, avec
+    son nom, sa date, le disque d'origine et sa taille), puis un ou plusieurs disques cibles.
+    La restauration suit le même chemin qu'un clonage : l'image joue le rôle du maître.</p>
+    <ul>
+      <li>Toutes les empreintes sont vérifiées <strong>avant d'écrire quoi que ce
+      soit</strong>. Une image abîmée est refusée, et les cibles restent intactes.</li>
+      <li>La cible doit contenir les partitions, pas tout le disque d'origine : la sauvegarde
+      d'un disque de 500 Go dont les partitions occupent 250 Go se restaure sur un 256 Go.</li>
+    </ul>
+  </section>
+
+  <section id="station">
+    <h2>Le mode station</h2>
+    <p>Pour une machine dédiée au clonage. Un assistant vous demande l'emplacement du
+    maître, puis ceux des cibles, puis si CloneGator doit démarrer tout seul à l'allumage.
+    Ensuite, l'accueil montre le tableau des baies, qui se met à jour dès qu'on insère ou
+    retire un disque :</p>
+<figure>
+<div class="terminal" role="img" aria-label="Accueil du mode station"><span class="bande"> CloneGator 0.1.0</span><span class="corps"><b>Mode station</b>
+
+  SATA1 (sda)   SOURCE      KINGSTON SA400S3      480,1 Go   GPT, 5 partitions : vfat, ntfs
+  SATA2 (sdb)   CIBLE       KINGSTON SA400S3      480,1 Go   <span class="ok">prêt</span>
+  SATA3 (sdc)   CIBLE       WDC WD2500AAKX        250,1 Go   <span class="alerte">trop petit (480,1 Go requis)</span>
+<span class="non">  SATA4         CIBLE       (vide)</span>
+<span class="aide">  USB2 (sdg)    SAUVEGARDES PSSD T7                          68,2 Go libres</span>
+
+<span class="choisi">1. Cloner la source vers les cibles          </span>
+2. Restaurer une sauvegarde vers les cibles
+3. Sauvegarder la source
+4. Quitter le mode station
+
+<span class="aide">↑↓ ou numéro : choisir    Entrée : valider</span></span></div>
+<figcaption>Exemple : une cible trop petite et une baie vide sont signalées avant qu'on lance quoi que ce soit.</figcaption>
+</figure>
+    <ul>
+      <li>Seuls les ports internes (SATA, NVMe) peuvent faire partie d'une station. En mode
+      station, tout disque dans une baie cible est effacé ; un port USB, lui, reçoit aussi des
+      clés et des claviers.</li>
+      <li>Avec le démarrage automatique, la machine s'allume directement sur ce tableau,
+      même après une coupure de courant. Quitter le mode station le coupe.</li>
+      <li>Revenir au mode station reprend le dernier réglage : quelques Entrée suffisent.</li>
+    </ul>
+  </section>
+
+  <section id="protections">
+    <h2>Les protections</h2>
+    <p>Deux règles protègent ce qui ne doit jamais être écrasé ; tout le reste est votre
+    choix, sur l'écran de confirmation.</p>
+    <ul class="garanties">
+      <li><strong>Le disque source n'est jamais écrit.</strong> Lui et chacune de ses
+      partitions passent en lecture seule dans le noyau (<code>blockdev --setro</code>) pendant
+      toute l'opération. Il retrouve son état normal à la fin, quoi qu'il arrive.</li>
+      <li><strong>Un disque utilisé par le système n'est ni source ni cible</strong> : monté,
+      en swap, dans un volume LVM ou RAID, disque de démarrage. C'est le noyau qui le dit, en
+      refusant de l'ouvrir en exclusivité.</li>
+      <li><strong>Un disque qui contient des sauvegardes CloneGator n'est jamais une
+      cible</strong>, même s'il n'est pas monté.</li>
+    </ul>
+    <p>Les disques écartés restent visibles dans les listes, grisés, avec la raison : on
+    comprend pourquoi un disque manque.</p>
+
+    <h3>L'écran de confirmation</h3>
+<figure>
+<div class="terminal" role="img" aria-label="Écran de confirmation d'un clonage"><span class="bande"> CloneGator 0.1.0</span><span class="corps"><b>Cloner — confirmation</b>
+
+Source  SATA1 (sda)    KINGSTON SA400S3, s/n 50026B728399DE13, 480,1 Go
+
+<span class="alerte">Cibles — TOUT LEUR CONTENU SERA EFFACÉ :</span>
+        SATA3 (sdc)    KINGSTON SA400S3, s/n 50026B77848F874D, 480,1 Go
+        SATA4 (sdd)    KINGSTON SA400S3, s/n 50026B7785169814, 480,1 Go
+        SATA5 (sde)    KINGSTON SA400S3, s/n 50026B7785169E1C, 480,1 Go
+
+À copier : 23,7 Go, environ 2 min 38 s.
+
+<span class="choisi">1. Annuler                                    </span>
+2. Lancer le clonage vers 3 disque(s)
+
+<span class="aide">↑↓ : choisir    Entrée : valider    I : copie intégrale    Échap : annuler</span></span></div>
+</figure>
+
+    <h3>Santé des disques</h3>
+    <p>Avant une opération, CloneGator interroge SMART sur chaque cible et le résume en un
+    mot : <strong>ok</strong>, <strong>usure</strong> (secteurs réalloués ou en attente,
+    moins de 20 % de durée de vie pour un SSD) ou <strong>défaillant</strong>. Un disque qui
+    se déclare lui-même défaillant est écarté ; la touche <kbd>F</kbd> permet de le choisir
+    quand même. Sur un parc de disques recyclés, c'est ce qui évite de cloner sur un disque
+    mourant sans le savoir.</p>
+
+    <h3>Vérification après la copie</h3>
+    <p>Quelques secondes par cible : la table de partitions est relue et comparée, et
+    chaque système de fichiers passe un contrôle en lecture seule (<code>ntfsfix -n</code>,
+    <code>e2fsck -n</code>, <code>fsck.fat -n</code>). Pas de relecture complète des
+    données : elle doublerait la durée de chaque copie.</p>
+  </section>
+
+  <section id="pannes">
+    <h2>Quand quelque chose tourne mal</h2>
+    <ul>
+      <li><strong>Une cible échoue ou se bloque</strong> (plus de 60 s sans progrès) : elle
+      est abandonnée et marquée en échec, les autres continuent à leur vitesse.</li>
+      <li><strong>Une cible est retirée en pleine copie</strong> : détecté en quelques
+      secondes, même chose.</li>
+      <li><strong>Vous interrompez</strong> (<kbd>Échap</kbd>, puis confirmer) : tout
+      s'arrête proprement, et les cibles en cours sont déclarées invalides. CloneGator ne
+      présente jamais une copie interrompue comme utilisable.</li>
+      <li><strong>Le stockage disparaît pendant une sauvegarde</strong> : le dossier reste
+      sans <code>clonegator.json</code>, donc hors de la liste des sauvegardes.</li>
+    </ul>
+    <p>Dans tous les cas, le disque source est rendu à son état normal et l'écran revient au
+    menu : une station ne reste jamais bloquée.</p>
+  </section>
+
+  <section id="technique">
+    <h2>Installation et fichiers</h2>
+    <div class="tableau">
+      <table>
+        <tr><th>Quoi</th><th>Où</th></tr>
+        <tr><td>Paquet</td><td><code>.deb</code> pour Debian et Ubuntu, testé sur Ubuntu 24.04</td></tr>
+        <tr><td>Dépendances</td><td><code>python3</code> (3.10 ou plus), <code>partclone</code>, <code>util-linux</code>, <code>zstd</code>, <code>smartmontools</code>, <code>ntfs-3g</code>, <code>e2fsprogs</code>, <code>dosfstools</code>, <code>cifs-utils</code>. Toutes dans les dépôts de la distribution.</td></tr>
+        <tr><td>Commande</td><td><code>sudo clonegator</code>, droits root nécessaires pour accéder aux disques</td></tr>
+        <tr><td>Programme</td><td><code>/usr/lib/clonegator/</code></td></tr>
+        <tr><td>Réglages</td><td><code>/etc/clonegator/clonegator.json</code> : mode, réglage de la station, partage réseau sans son mot de passe</td></tr>
+        <tr><td>Journaux</td><td><code>/var/log/clonegator/&lt;date&gt;_&lt;opération&gt;/</code>, avec un <code>rapport.txt</code> et la sortie de chaque outil</td></tr>
+        <tr><td>Démarrage automatique</td><td>une unité systemd sur la console <code>tty1</code>, installée seulement si vous l'activez dans le mode station</td></tr>
+      </table>
+    </div>
+    <p>Chaque journal porte le numéro de série de la source et de chaque cible : trois
+    semaines plus tard, on sait encore si ce disque-là a été cloné correctement. Un seul
+    CloneGator tourne à la fois sur une machine.</p>
+    <p>Écrit en Python 3, avec la bibliothèque standard seulement : rien à installer
+    hors des dépôts de la distribution. Le code et les documents de conception sont sur
+    <a href="https://github.com/kevin-belanger/CloneGator">GitHub</a>.</p>
+  </section>
+
+  <section id="suite">
+    <h2>Pas encore là</h2>
+    <p>Envisagé pour la suite, sans date :</p>
+    <ul>
+      <li>une clé USB ou une ISO démarrable, pour utiliser CloneGator sur n'importe quel PC
+      sans rien installer ;</li>
+      <li>les sauvegardes sur un partage NFS ;</li>
+      <li>agrandir la dernière partition sur une cible plus grande ;</li>
+      <li>l'effacement sécurisé des disques en fin de vie ;</li>
+      <li>gérer les sauvegardes depuis l'interface (supprimer, renommer).</li>
+    </ul>
+  </section>
+
+</main>
+
+<footer class="pied">
+  <div class="conteneur">
+    <span>CloneGator · Kevin Bélanger · licence MIT</span>
+    <span><a href="./">Accueil</a> · <a href="telecharger.html">Télécharger</a> · <a href="https://github.com/kevin-belanger/CloneGator">GitHub</a></span>
+  </div>
+</footer>
+
+</body>
+</html>

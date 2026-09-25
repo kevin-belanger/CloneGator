@@ -93,6 +93,15 @@ Phase 5 terminée, MVP livré. `./outils/construire-paquet.sh` construit le
 copie nommée `clonegator.deb` pour l'adresse courte
 `github.com/kevin-belanger/CloneGator/releases/latest/download/clonegator.deb`.
 
+## Site web
+
+`website/` : trois pages statiques (accueil, détails, télécharger), sans
+outil de construction, publiées sur GitHub Pages par
+`.github/workflows/site.yml` à chaque poussée qui les touche ; domaine
+`clonegator.com`. La page Télécharger lit les releases GitHub au chargement :
+publier une release suffit. Garder les textes fidèles au logiciel (écrans
+recopiés de l'interface réelle) et simples à lire pour un technicien.
+
 ## Essais
 
 **Les baies sont le niveau d'essai principal.** Cinq SSD de 480 Go, sacrifiés :

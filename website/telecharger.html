@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Télécharger · CloneGator</title>
+  <meta name="description" content="Télécharger CloneGator : dernière version et historique des versions. Paquet .deb pour Debian et Ubuntu.">
+  <link rel="icon" href="img/icone.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="entete">
+  <div class="conteneur">
+    <a class="marque" href="./"><img src="img/icone.png" alt=""><span>Clone<b>Gator</b></span></a>
+    <nav class="navigation">
+      <a href="./">Accueil</a>
+      <a href="details.html">Détails</a>
+      <a href="telecharger.html" aria-current="page">Télécharger</a>
+      <a href="https://github.com/kevin-belanger/CloneGator">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main class="conteneur">
+
+  <div class="titre-page">
+    <h1>Télécharger</h1>
+    <p class="intro">Un paquet <code>.deb</code> pour Debian et Ubuntu, testé sur
+    Ubuntu 24.04. Gratuit, pour tout le monde.</p>
+  </div>
+
+  <div class="derniere">
+    <p class="doux" style="margin:0">Dernière version</p>
+    <h2 id="derniere-nom">CloneGator</h2>
+    <p class="doux" id="derniere-date"></p>
+    <div class="boutons">
+      <a class="bouton plein" id="derniere-lien"
+         href="https://github.com/kevin-belanger/CloneGator/releases/latest/download/clonegator.deb">Télécharger le .deb</a>
+    </div>
+    <h3>Ou dans un terminal</h3>
+<pre><code>wget github.com/kevin-belanger/CloneGator/releases/latest/download/clonegator.deb
+sudo apt install ./clonegator.deb
+sudo clonegator</code></pre>
+    <p class="doux" style="margin:0">Pour mettre à jour, les mêmes commandes : apt remplace
+    l'ancienne version et garde vos réglages. Pour désinstaller :
+    <code>sudo apt remove clonegator</code>.</p>
+  </div>
+
+  <section>
+    <h2>Historique des versions</h2>
+    <ul class="versions" id="versions">
+      <li class="doux">Chargement de la liste…</li>
+    </ul>
+    <p>Toutes les versions et leurs fichiers sont aussi sur
+    <a href="https://github.com/kevin-belanger/CloneGator/releases">GitHub</a>.
+    Le code source : <a href="https://github.com/kevin-belanger/CloneGator">github.com/kevin-belanger/CloneGator</a>.</p>
+  </section>
+
+</main>
+
+<footer class="pied">
+  <div class="conteneur">
+    <span>CloneGator · Kevin Bélanger · licence MIT</span>
+    <span><a href="./">Accueil</a> · <a href="details.html">Détails</a> · <a href="https://github.com/kevin-belanger/CloneGator">GitHub</a></span>
+  </div>
+</footer>
+
+<script src="versions.js"></script>
+</body>
+</html>
