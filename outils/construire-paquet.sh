@@ -5,7 +5,7 @@
 #   ./outils/construire-paquet.sh
 #
 # La version du paquet est celle de clonegator/__init__.py, complétée de la
-# date et du commit : ce qui s'exécute doit toujours pouvoir être retrouvé
+# date et de l'heure du commit, et de son hachage : ce qui s'exécute doit toujours pouvoir être retrouvé
 # (§14). Un dépôt modifié mais non commité est refusé, pour la même raison.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -17,7 +17,10 @@ fi
 
 base=$(python3 -c 'import clonegator; print(clonegator.VERSION)')
 commit=$(git rev-parse --short HEAD)
-version="${base/-dev/~dev}+$(date +%Y%m%d).g${commit}"
+# Date et heure du commit, à la minute : deux versions du même jour se suivent
+# dans l'ordre, et apt accepte la mise à jour (le hachage seul n'est pas ordonné).
+quand=$(git log -1 --format=%cd --date=format-local:%Y%m%d%H%M)
+version="${base/-dev/~dev}+${quand}.g${commit}"
 
 racine=$(mktemp -d)
 trap 'rm -rf "$racine"' EXIT
